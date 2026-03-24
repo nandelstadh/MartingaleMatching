@@ -1,17 +1,5 @@
-import math
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple, Type
-
-import matplotlib.cm as cm
-import numpy as np
-import seaborn as sns
 import torch
-import torch.distributions as D
 from matplotlib import pyplot as plt
-from matplotlib.axes._axes import Axes
-from sklearn.datasets import make_circles, make_moons
-from torch.func import jacrev, vmap
-from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -45,7 +33,7 @@ losses = trainer.train(num_epochs=5000, device=device, lr=1e-3, batch_size=1000)
 # Change these values #
 #######################
 num_samples = 1000
-num_timesteps = 1000
+num_timesteps = 300
 num_marginals = 3
 
 
@@ -56,8 +44,9 @@ num_marginals = 3
 scale = PARAMS["scale"]
 x_bounds = [-scale, scale]
 y_bounds = [-scale, scale]
-legend_size = 24
+legend_size = 10
 markerscale = 1.8
+dot_size = 8
 
 # Setup figure
 fig, axes = plt.subplots(1, 3, figsize=(36, 12))
@@ -71,7 +60,7 @@ ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
 ax.set_yticks([])
-ax.set_title("Samples from Learned Marginal ODE", fontsize=20)
+ax.set_title("Samples from Learned Marginal ODE", fontsize=10)
 
 # Plot source and target
 imshow_density(
@@ -120,6 +109,7 @@ for plot_idx in range(xts_every_n.shape[1]):
         xts_every_n[:, plot_idx, 0].detach().cpu(),
         xts_every_n[:, plot_idx, 1].detach().cpu(),
         marker="o",
+        s=dot_size,
         alpha=0.5,
         label=f"t={tt:.2f}",
     )
@@ -130,7 +120,7 @@ ax.legend(prop={"size": legend_size}, loc="upper right", markerscale=markerscale
 # Graph Trajectories of Learned Marginal ODE #
 ##############################################
 ax = axes[2]
-ax.set_title("Trajectories of Learned Marginal ODE", fontsize=20)
+ax.set_title("Trajectories of Learned Marginal ODE", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
@@ -170,7 +160,7 @@ for traj_idx in range(num_samples // 10):
 # Graph Ground-Truth Marginal Probability Path #
 ################################################
 ax = axes[0]
-ax.set_title("Ground-Truth Marginal Probability Path", fontsize=20)
+ax.set_title("Ground-Truth Marginal Probability Path", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
@@ -183,6 +173,7 @@ for plot_idx in range(xts_every_n.shape[1]):
         marginal_samples[:, 0].detach().cpu(),
         marginal_samples[:, 1].detach().cpu(),
         marker="o",
+        s=dot_size,
         alpha=0.5,
         label=f"t={tt[0,0].item():.2f}",
     )
@@ -216,9 +207,6 @@ plt.show()
 
 # Now let's train! **Remember, the loss should converge, but not to zero!**
 
-# In[ ]:
-
-
 # Construct conditional probability path
 path = GaussianConditionalProbabilityPath(
     p_data=GaussianMixture.symmetric_2D(
@@ -245,16 +233,6 @@ num_marginals = 3
 sigma = 2.0  # Don't set sigma too large or you'll get numerical issues!
 
 
-##############
-# Setup Plot #
-##############
-
-scale = PARAMS["scale"]
-x_bounds = [-scale, scale]
-y_bounds = [-scale, scale]
-legend_size = 24
-markerscale = 1.8
-
 # Setup figure
 fig, axes = plt.subplots(1, 3, figsize=(36, 12))
 
@@ -262,7 +240,7 @@ fig, axes = plt.subplots(1, 3, figsize=(36, 12))
 # Graph Samples from Learned Marginal SDE #
 ###########################################
 ax = axes[1]
-ax.set_title("Samples from Learned Marginal SDE", fontsize=20)
+ax.set_title("Samples from Learned Marginal SDE", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
@@ -315,6 +293,7 @@ for plot_idx in range(xts_every_n.shape[1]):
         xts_every_n[:, plot_idx, 0].detach().cpu(),
         xts_every_n[:, plot_idx, 1].detach().cpu(),
         marker="o",
+        s=dot_size,
         alpha=0.5,
         label=f"t={tt:.2f}",
     )
@@ -325,7 +304,7 @@ ax.legend(prop={"size": legend_size}, loc="upper right", markerscale=markerscale
 # Graph Trajectories of Learned Marginal SDE  #
 ###############################################
 ax = axes[2]
-ax.set_title("Trajectories of Learned Marginal SDE", fontsize=20)
+ax.set_title("Trajectories of Learned Marginal SDE", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
@@ -365,7 +344,7 @@ for traj_idx in range(num_samples // 10):
 # Graph Ground-Truth Marginal Probability Path #
 ################################################
 ax = axes[0]
-ax.set_title("Ground-Truth Marginal Probability Path", fontsize=20)
+ax.set_title("Ground-Truth Marginal Probability Path", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
@@ -378,6 +357,7 @@ for plot_idx in range(xts_every_n.shape[1]):
         marginal_samples[:, 0].detach().cpu(),
         marginal_samples[:, 1].detach().cpu(),
         marker="o",
+        s=dot_size,
         alpha=0.5,
         label=f"t={tt[0,0].item():.2f}",
     )
