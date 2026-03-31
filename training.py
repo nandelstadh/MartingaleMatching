@@ -4,7 +4,7 @@ from tqdm import tqdm
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 from distributions import *
-from ppaths import *
+from paths import *
 from simulation import *
 
 # ### Problem 3.1 Flow Matching with Gaussian Conditional Probability Paths

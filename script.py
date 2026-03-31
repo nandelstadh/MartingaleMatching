@@ -4,10 +4,10 @@ from matplotlib import pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 from distributions import *
-from matching import *
+from paths import *
 from plotting import *
-from ppaths import *
 from simulation import *
+from training import *
 
 # # Part 3: Flow Matching and Score Matching with Gaussian Conditional Probability Paths
 #
