@@ -24,7 +24,7 @@ path = GaussianConditionalProbabilityPath(
 model = MLPDrift(dim=2, hiddens=[64, 64, 64, 64])
 
 # Construct trainer
-trainer = ConditionalMartingaleMatchingTrainer(path, model)
+trainer = MartingaleMatchingTrainer(path, model)
 losses = trainer.train(num_epochs=5000, device=device, lr=1e-3, batch_size=1000)
 
 

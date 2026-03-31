@@ -1,7 +1,7 @@
 import torch
 from tqdm import tqdm
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 from distributions import *
 from ppaths import *
@@ -17,27 +17,6 @@ def build_mlp(dims: List[int], activation: Type[torch.nn.Module] = torch.nn.SiLU
         if idx < len(dims) - 2:
             mlp.append(activation())
     return torch.nn.Sequential(*mlp)
-
-
-class MLPVectorField(torch.nn.Module):
-    """
-    MLP-parameterization of the learned vector field u_t^theta(x)
-    """
-
-    def __init__(self, dim: int, hiddens: List[int]):
-        super().__init__()
-        self.dim = dim
-        self.net = build_mlp([dim + 1] + hiddens + [dim])
-
-    def forward(self, x: torch.Tensor, t: torch.Tensor):
-        """
-        Args:
-        - x: (bs, dim)
-        Returns:
-        - u_t^theta(x): (bs, dim)
-        """
-        xt = torch.cat([x, t], dim=-1)
-        return self.net(xt)
 
 
 class Trainer(ABC):
@@ -73,112 +52,6 @@ class Trainer(ABC):
         self.model.eval()
 
 
-class ConditionalFlowMatchingTrainer(Trainer):
-    def __init__(
-        self, path: ConditionalProbabilityPath, model: MLPVectorField, **kwargs
-    ):
-        super().__init__(model, **kwargs)
-        self.path = path
-
-    def get_train_loss(self, batch_size: int) -> torch.Tensor:
-        z = self.path.p_data.sample(batch_size)  # (bs, dim)
-        t = torch.rand(batch_size, 1).to(z)  # (bs, 1)
-        x = self.path.sample_conditional_path(z, t)  # (bs, dim)
-
-        ut_theta = self.model(x, t)  # (bs, dim)
-        ut_ref = self.path.conditional_vector_field(x, z, t)  # (bs, dim)
-        error = torch.sum(torch.square(ut_theta - ut_ref), dim=-1)  # (bs,)
-        return torch.mean(error)
-
-
-class LearnedVectorFieldODE(ODE):
-    def __init__(self, net: MLPVectorField):
-        self.net = net
-
-    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - x: (bs, dim)
-            - t: (bs, dim)
-        Returns:
-            - u_t: (bs, dim)
-        """
-        return self.net(x, t)
-
-
-# ### Problem 3.2: Score Matching with Gaussian Conditional Probability Paths
-
-
-class MLPScore(torch.nn.Module):
-    """
-    MLP-parameterization of the learned score field
-    """
-
-    def __init__(self, dim: int, hiddens: List[int]):
-        super().__init__()
-        self.dim = dim
-        self.net = build_mlp([dim + 1] + hiddens + [dim])
-
-    def forward(self, x: torch.Tensor, t: torch.Tensor):
-        """
-        Args:
-        - x: (bs, dim)
-        Returns:
-        - s_t^theta(x): (bs, dim)
-        """
-        xt = torch.cat([x, t], dim=-1)
-        return self.net(xt)
-
-
-class ConditionalScoreMatchingTrainer(Trainer):
-    def __init__(self, path: ConditionalProbabilityPath, model: MLPScore, **kwargs):
-        super().__init__(model, **kwargs)
-        self.path = path
-
-    def get_train_loss(self, batch_size: int) -> torch.Tensor:
-        z = self.path.p_data.sample(batch_size)  # (bs, dim)
-        t = torch.rand(batch_size, 1).to(z)  # (bs, 1)
-        x = self.path.sample_conditional_path(z, t)  # (bs, dim)
-
-        s_theta = self.model(x, t)  # (bs, dim)
-        s_ref = self.path.conditional_score(x, z, t)  # (bs, dim)
-        mse = torch.sum(torch.square(s_theta - s_ref), dim=-1)  # (bs,)
-        return torch.mean(mse)
-
-
-class LangevinFlowSDE(SDE):
-    def __init__(self, flow_model: MLPVectorField, score_model: MLPScore, sigma: float):
-        """
-        Args:
-        - path: the ConditionalProbabilityPath object to which this vector field corresponds
-        - z: the conditioning variable, (1, dim)
-        """
-        super().__init__()
-        self.flow_model = flow_model
-        self.score_model = score_model
-        self.sigma = sigma
-
-    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - x: state at time t, shape (bs, dim)
-            - t: time, shape (bs,.)
-        Returns:
-            - u_t(x|z): shape (batch_size, dim)
-        """
-        return self.flow_model(x, t) + 0.5 * self.sigma**2 * self.score_model(x, t)
-
-    def diffusion_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - x: state at time t, shape (bs, dim)
-            - t: time, shape (bs,.)
-        Returns:
-            - u_t(x|z): shape (batch_size, dim)
-        """
-        return self.sigma
-
-
 # Maringale matching
 
 
@@ -206,13 +79,16 @@ class MLPDrift(torch.nn.Module):
 "WE NEED TO IMPLEMENT THE MARTINGALE LOSS HERE"
 
 
-class ConditionalMartingaleMatchingTrainer(Trainer):
+class MartingaleMatchingTrainer(Trainer):
     def __init__(self, path: ConditionalProbabilityPath, model: MLPDrift, **kwargs):
         super().__init__(model, **kwargs)
         self.path = path
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
+        # THESE SHOULD NOT BE HARDCODED HERE, FIX LATER
         steps = 100
+        dim = 2
+
         z = self.path.p_data.sample(batch_size)
         z = z.unsqueeze(1).repeat(1, steps, 1)
         t = torch.linspace(0, 1, steps=steps).to(z)
@@ -232,11 +108,6 @@ class ConditionalMartingaleMatchingTrainer(Trainer):
         residual = x_next - x_now - b_theta * dt
         mse = torch.mean(residual) ** 2
         return mse
-
-        # s_theta = self.model(x, t)  # (bs, dim)
-        # s_ref = self.path.conditional_score(x, z, t)  # (bs, dim)
-        # mse = torch.sum(torch.square(s_theta - s_ref), dim=-1)  # (bs,)
-        # return torch.mean(mse)
 
 
 class MartingaleLossSDE(SDE):
