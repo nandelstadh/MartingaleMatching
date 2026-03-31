@@ -212,14 +212,31 @@ class ConditionalMartingaleMatchingTrainer(Trainer):
         self.path = path
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
-        z = self.path.p_data.sample(batch_size)  # (bs, dim)
-        t = torch.rand(batch_size, 1).to(z)  # (bs, 1)
-        x = self.path.sample_conditional_path(z, t)  # (bs, dim)
+        steps = 100
+        z = self.path.p_data.sample(batch_size)
+        z = z.unsqueeze(1).repeat(1, steps, 1)
+        t = torch.linspace(0, 1, steps=steps).to(z)
+        t = t.unsqueeze(0).unsqueeze(2).repeat(batch_size, 1, 1)
+        x = self.path.sample_conditional_path(z, t)
+        dt = 1 / steps
 
-        s_theta = self.model(x, t)  # (bs, dim)
-        s_ref = self.path.conditional_score(x, z, t)  # (bs, dim)
-        mse = torch.sum(torch.square(s_theta - s_ref), dim=-1)  # (bs,)
-        return torch.mean(mse)
+        # print(z.shape)
+        # print(t.shape)
+        # print(x.shape)
+
+        x_now = x[:, :-1, :]
+        x_next = x[:, 1:, :]
+        t_now = t[:, :-1, :]
+
+        b_theta = self.model(x_now, t_now)
+        residual = x_next - x_now - b_theta * dt
+        mse = torch.mean(residual) ** 2
+        return mse
+
+        # s_theta = self.model(x, t)  # (bs, dim)
+        # s_ref = self.path.conditional_score(x, z, t)  # (bs, dim)
+        # mse = torch.sum(torch.square(s_theta - s_ref), dim=-1)  # (bs,)
+        # return torch.mean(mse)
 
 
 class MartingaleLossSDE(SDE):
