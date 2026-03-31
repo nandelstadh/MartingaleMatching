@@ -1,12 +1,13 @@
 import torch
 from matplotlib import pyplot as plt
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 from distributions import *
 from paths import *
 from plotting import *
 from simulation import *
+from testfuncs import *
 from training import *
 
 # # Part 3: Flow Matching and Score Matching with Gaussian Conditional Probability Paths
@@ -23,8 +24,20 @@ path = GaussianConditionalProbabilityPath(
 
 model = MLPDrift(dim=2, hiddens=[64, 64, 64, 64])
 
+batch_size = 256
+steps = 100
+dim = 2
+tfunc = Polynomial()
+sig = 2.0
 # Construct trainer
-trainer = MartingaleMatchingTrainer(path, model)
+trainer = MartingaleMatchingTrainer(
+    path,
+    model,
+    steps,
+    dim,
+    tfunc,
+    sig,
+)
 losses = trainer.train(num_epochs=5000, device=device, lr=1e-3, batch_size=1000)
 
 

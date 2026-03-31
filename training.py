@@ -6,6 +6,7 @@ device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 from distributions import *
 from paths import *
 from simulation import *
+from testfuncs import *
 
 # ### Problem 3.1 Flow Matching with Gaussian Conditional Probability Paths
 
@@ -76,25 +77,32 @@ class MLPDrift(torch.nn.Module):
         return self.net(xt)
 
 
-"WE NEED TO IMPLEMENT THE MARTINGALE LOSS HERE"
-
-
 class MartingaleMatchingTrainer(Trainer):
-    def __init__(self, path: ConditionalProbabilityPath, model: MLPDrift, **kwargs):
+    def __init__(
+        self,
+        path: ConditionalProbabilityPath,
+        model: MLPDrift,
+        steps: int,
+        dim: int,
+        tfunc: Polynomial,
+        sigma: float,
+        **kwargs,
+    ):
         super().__init__(model, **kwargs)
+        self.steps = steps
+        self.dim = dim
         self.path = path
+        self.tfunc = tfunc
+        self.sigma = sigma
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
-        # THESE SHOULD NOT BE HARDCODED HERE, FIX LATER
-        steps = 100
-        dim = 2
 
         z = self.path.p_data.sample(batch_size)
-        z = z.unsqueeze(1).repeat(1, steps, 1)
-        t = torch.linspace(0, 1, steps=steps).to(z)
+        z = z.unsqueeze(1).repeat(1, self.steps, 1)
+        t = torch.linspace(0, 1, steps=self.steps).to(z)
         t = t.unsqueeze(0).unsqueeze(2).repeat(batch_size, 1, 1)
         x = self.path.sample_conditional_path(z, t)
-        dt = 1 / steps
+        dt = 1 / self.steps
 
         # print(z.shape)
         # print(t.shape)
@@ -105,7 +113,18 @@ class MartingaleMatchingTrainer(Trainer):
         t_now = t[:, :-1, :]
 
         b_theta = self.model(x_now, t_now)
-        residual = x_next - x_now - b_theta * dt
+
+        grad, hess = self.tfunc.grad_and_hess(x_now)
+
+        drift = (grad * b_theta.unsqueeze(2)).sum(-1)  # (B, K)
+        diffusion = (self.sigma * self.sigma * hess).sum(dim=(-1, -2))  # (B, K)
+        generator = drift + 0.5 * diffusion
+
+        f_now = self.tfunc.func(x_now)
+        f_next = self.tfunc.func(x_next)
+
+        # residual = x_next - x_now - b_theta * dt
+        residual = f_next - f_now - dt * generator
         mse = torch.mean(residual) ** 2
         return mse
 
