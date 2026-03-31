@@ -67,36 +67,6 @@ class ConditionalProbabilityPath(torch.nn.Module, ABC):
         """
         pass
 
-    @abstractmethod
-    def conditional_vector_field(
-        self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Evaluates the conditional vector field u_t(x|z)
-        Args:
-            - x: position variable (num_samples, dim)
-            - z: conditioning variable (num_samples, dim)
-            - t: time (num_samples, 1)
-        Returns:
-            - conditional_vector_field: conditional vector field (num_samples, dim)
-        """
-        pass
-
-    @abstractmethod
-    def conditional_score(
-        self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Evaluates the conditional score of p_t(x|z)
-        Args:
-            - x: position variable (num_samples, dim)
-            - z: conditioning variable (num_samples, dim)
-            - t: time (num_samples, 1)
-        Returns:
-            - conditional_score: conditional score (num_samples, dim)
-        """
-        pass
-
 
 # Setup for the Gaussian case
 PARAMS = {
@@ -111,11 +81,7 @@ p_data = GaussianMixture.symmetric_2D(
 ).to(device)
 
 
-# ### Problem 2.1: Implementing $\alpha_t$ and $\beta_t$
-
-# Let's get started by implementing $\alpha_t$ and $\beta_t$. We can think of these simply as callable objects which fulfill the simple contract $\alpha_1 = \beta_0 = 1$ and $\alpha_0 = \beta_1 = 0$, and which can compute their time derivatives $\dot{\alpha}_t$ and $\dot{\beta}_t$. We implement them below via the classes `Alpha` and `Beta`.
-
-# In[11]:
+# Implementing abstract classes for alpha and beta
 
 
 class Alpha(ABC):
@@ -180,11 +146,7 @@ class Beta(ABC):
         return dt.view(-1, 1)
 
 
-# In this section, we'll be using $$\alpha_t = t \quad \quad \text{and} \quad \quad \beta_t = \sqrt{1-t}.$$ It is not hard to check that both functions are continuously differentiable on $[0,1)$, and monotonic, that $\alpha_1 = \beta_0 = 1$, and that $\alpha_0 = \beta_1 = 0$.
-#
-# **Your job**: Implement the `__call__` methods of the classes `LinearAlpha` and `SquareRootBeta` below.
-
-# In[12]:
+# Implementing useful instances of alpha and beta
 
 
 class LinearAlpha(Alpha):
@@ -237,9 +199,7 @@ class SquareRootBeta(Beta):
         return -0.5 / (torch.sqrt(1 - t) + 1e-4)
 
 
-# Let us know turn towards the task of implementing the `GaussianConditionalProbabilityPath` path.
-
-# In[13]:
+# Gaussian probability path
 
 
 class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
@@ -269,109 +229,3 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
             - x: samples from p_t(x|z), (num_samples, dim)
         """
         return self.alpha(t) * z + self.beta(t) * torch.randn_like(z)
-
-    def conditional_vector_field(
-        self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Evaluates the conditional vector field u_t(x|z)
-        Note: Only defined on t in [0,1)
-        Args:
-            - x: position variable (num_samples, dim)
-            - z: conditioning variable (num_samples, dim)
-            - t: time (num_samples, 1)
-        Returns:
-            - conditional_vector_field: conditional vector field (num_samples, dim)
-        """
-        alpha_t = self.alpha(t)  # (num_samples, 1)
-        beta_t = self.beta(t)  # (num_samples, 1)
-        dt_alpha_t = self.alpha.dt(t)  # (num_samples, 1)
-        dt_beta_t = self.beta.dt(t)  # (num_samples, 1)
-
-        return (dt_alpha_t - dt_beta_t / beta_t * alpha_t) * z + dt_beta_t / beta_t * x
-
-    def conditional_score(
-        self, x: torch.Tensor, z: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Evaluates the conditional score of p_t(x|z) = N(alpha_t * z, beta_t**2 * I_d)
-        Note: Only defined on t in [0,1)
-        Args:
-            - x: position variable (num_samples, dim)
-            - z: conditioning variable (num_samples, dim)
-            - t: time (num_samples, 1)
-        Returns:
-            - conditional_score: conditional score (num_samples, dim)
-        """
-        alpha_t = self.alpha(t)
-        beta_t = self.beta(t)
-        return (z * alpha_t - x) / beta_t**2
-
-
-# ### Problem 2.3: Conditional Vector Field
-
-
-class ConditionalVectorFieldODE(ODE):
-    def __init__(self, path: ConditionalProbabilityPath, z: torch.Tensor):
-        """
-        Args:
-        - path: the ConditionalProbabilityPath object to which this vector field corresponds
-        - z: the conditioning variable, (1, dim)
-        """
-        super().__init__()
-        self.path = path
-        self.z = z
-
-    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Returns the conditional vector field u_t(x|z)
-        Args:
-            - x: state at time t, shape (bs, dim)
-            - t: time, shape (bs,.)
-        Returns:
-            - u_t(x|z): shape (batch_size, dim)
-        """
-        bs = x.shape[0]
-        z = self.z.expand(bs, *self.z.shape[1:])
-        return self.path.conditional_vector_field(x, z, t)
-
-
-# ### Problem 2.4: The Conditional Score
-
-
-class ConditionalVectorFieldSDE(SDE):
-    def __init__(self, path: ConditionalProbabilityPath, z: torch.Tensor, sigma: float):
-        """
-        Args:
-        - path: the ConditionalProbabilityPath object to which this vector field corresponds
-        - z: the conditioning variable, (1, ...)
-        """
-        super().__init__()
-        self.path = path
-        self.z = z
-        self.sigma = sigma
-
-    def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Returns the conditional vector field u_t(x|z)
-        Args:
-            - x: state at time t, shape (bs, dim)
-            - t: time, shape (bs,.)
-        Returns:
-            - u_t(x|z): shape (batch_size, dim)
-        """
-        bs = x.shape[0]
-        z = self.z.expand(bs, *self.z.shape[1:])
-        return self.path.conditional_vector_field(
-            x, z, t
-        ) + 0.5 * self.sigma**2 * self.path.conditional_score(x, z, t)
-
-    def diffusion_coefficient(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - x: state at time t, shape (bs, dim)
-            - t: time, shape (bs,.)
-        Returns:
-            - u_t(x|z): shape (batch_size, dim)
-        """
-        return self.sigma
