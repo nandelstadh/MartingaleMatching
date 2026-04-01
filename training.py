@@ -102,7 +102,7 @@ class MartingaleMatchingTrainer(Trainer):
         t = torch.linspace(0, 1, steps=self.steps).to(z)
         t = t.unsqueeze(0).unsqueeze(2).repeat(batch_size, 1, 1)
         x = self.path.sample_conditional_path(z, t)
-        dt = 1 / self.steps
+        dt = 1 / (self.steps - 1)
 
         # print(z.shape)
         # print(t.shape)
@@ -126,7 +126,14 @@ class MartingaleMatchingTrainer(Trainer):
         # residual = x_next - x_now - b_theta * dt
         residual = f_next - f_now - dt * generator
         mse = torch.mean(residual) ** 2
-        return mse
+        # Linear residual
+        R_linear = x_next - x_now - b_theta * dt
+
+        # Quadratic residual
+        R_quad = x_next**2 - x_now**2 - dt * (2 * x_now * b_theta + self.sigma**2)
+
+        loss = torch.mean(R_linear**2) + torch.mean(R_quad**2)
+        return loss
 
 
 class MartingaleLossSDE(SDE):

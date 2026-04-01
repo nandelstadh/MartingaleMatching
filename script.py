@@ -1,7 +1,12 @@
 import torch
 from matplotlib import pyplot as plt
+from torch.cuda import is_available
+
+if torch.backends.mps.is_available():
+    print("Mps is available")
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(device)
 
 from distributions import *
 from paths import *
@@ -24,7 +29,8 @@ path = GaussianConditionalProbabilityPath(
 
 model = MLPDrift(dim=2, hiddens=[64, 64, 64, 64])
 
-batch_size = 256
+num_epochs = 5000
+batch_size = 1000
 steps = 100
 dim = 2
 tfunc = Polynomial()
@@ -38,7 +44,10 @@ trainer = MartingaleMatchingTrainer(
     tfunc,
     sig,
 )
-losses = trainer.train(num_epochs=5000, device=device, lr=1e-3, batch_size=1000)
+
+losses = trainer.train(
+    num_epochs=num_epochs, device=device, lr=1e-3, batch_size=batch_size
+)
 
 
 #######################
