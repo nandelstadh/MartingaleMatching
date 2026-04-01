@@ -104,36 +104,24 @@ class MartingaleMatchingTrainer(Trainer):
         x = self.path.sample_conditional_path(z, t)
         dt = 1 / (self.steps - 1)
 
-        # print(z.shape)
-        # print(t.shape)
-        # print(x.shape)
-
         x_now = x[:, :-1, :]
         x_next = x[:, 1:, :]
         t_now = t[:, :-1, :]
 
         b_theta = self.model(x_now, t_now)
 
-        grad, hess = self.tfunc.grad_and_hess(x_now)
+        grad, trace = self.tfunc.grad_and_trace(x_now)
 
-        drift = (grad * b_theta.unsqueeze(2)).sum(-1)  # (B, K)
-        diffusion = (self.sigma * self.sigma * hess).sum(dim=(-1, -2))  # (B, K)
+        drift = (grad * b_theta.unsqueeze(2)).sum(-1)
+        diffusion = self.sigma * self.sigma * trace
         generator = drift + 0.5 * diffusion
 
         f_now = self.tfunc.func(x_now)
         f_next = self.tfunc.func(x_next)
 
-        # residual = x_next - x_now - b_theta * dt
         residual = f_next - f_now - dt * generator
-        mse = torch.mean(residual) ** 2
-        # Linear residual
-        R_linear = x_next - x_now - b_theta * dt
-
-        # Quadratic residual
-        R_quad = x_next**2 - x_now**2 - dt * (2 * x_now * b_theta + self.sigma**2)
-
-        loss = torch.mean(R_linear**2) + torch.mean(R_quad**2)
-        return loss
+        mse = torch.mean(residual**2)
+        return mse
 
 
 class MartingaleLossSDE(SDE):

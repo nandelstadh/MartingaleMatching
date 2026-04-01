@@ -19,7 +19,7 @@ class TestFunction(ABC):
         pass
 
     @abstractmethod
-    def grad_and_hess(self):
+    def grad_and_trace(self):
         pass
 
 
@@ -46,41 +46,43 @@ class Polynomial(TestFunction):
 
         return torch.cat([linear, quad], dim=-1)
 
-    def grad_and_hess(self, x: torch.Tensor):
+    def grad_and_trace(self, x: torch.Tensor):
         """
         Args:
         - x: (bs, t, dim)
         Returns:
-        - grad: (bs, t, K)
-        - hess: (bs, t, K, K)
+        - grad: (bs, t, K, dim)
+        - trace: (bs, t, K)
         """
+
         batch_size, steps, dim = x.shape
+        device = x.device
 
         # Output dimension
         K = dim + dim * dim
 
-        grad = torch.zeros(batch_size, steps, K, dim)
-        hess = torch.zeros(batch_size, steps, K, dim, dim)
+        grad = torch.zeros(batch_size, steps, K, dim, device=device)
+        trace = torch.zeros(batch_size, steps, K, device=device)
 
-        k = 0
+        # Linear terms
+        eye = torch.eye(dim, device=device)
+        grad[:, :, :dim, :] = eye.view(1, 1, dim, dim)
 
-        # Linear terms: f_i = x_i
-        for i in range(dim):
-            grad[:, k, i] = 1.0
-            # Hessian = 0
-            k += 1
+        # Nonlinear terms
+        # indices
+        i_idx = torch.arange(dim, device=device).repeat_interleave(dim)
+        j_idx = torch.arange(dim, device=device).repeat(dim)
 
-        # Quadratic terms: f_ij = x_i x_j
-        for i in range(dim):
-            for j in range(dim):
-                # gradient
-                grad[:, k, i] = x[:, j]
-                grad[:, k, j] = x[:, i]
+        # gradient
+        eye = torch.eye(dim, device=device)
+        e_i = eye[i_idx]  # (dim^2, dim)
+        e_j = eye[j_idx]  # (dim^2, dim)
+        grad[:, :, dim:, :] = x[:, :, j_idx].unsqueeze(-1) * e_i.unsqueeze(0).unsqueeze(
+            0
+        ) + x[:, :, i_idx].unsqueeze(-1) * e_j.unsqueeze(0).unsqueeze(0)
 
-                # Hessian
-                hess[:, k, i, j] = 1.0
-                hess[:, k, j, i] = 1.0
+        # trace (Laplacian) of x_i x_j is 2 for i=j and 0 otherwise.
+        diag_mask = i_idx == j_idx
+        trace[:, :, dim:] = (2.0 * diag_mask).view(1, 1, -1)
 
-                k += 1
-
-        return grad, hess
+        return grad, trace
