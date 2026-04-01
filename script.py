@@ -34,7 +34,7 @@ batch_size = 1000
 steps = 100
 dim = 2
 tfunc = Polynomial()
-sig = 2.0
+sigma = 2.0
 # Construct trainer
 trainer = MartingaleMatchingTrainer(
     path,
@@ -42,7 +42,7 @@ trainer = MartingaleMatchingTrainer(
     steps,
     dim,
     tfunc,
-    sig,
+    sigma,
 )
 
 losses = trainer.train(
@@ -53,10 +53,9 @@ losses = trainer.train(
 #######################
 # Change these values #
 #######################
-num_samples = 1000
+num_samples = 5000
 num_timesteps = 300
 num_marginals = 3
-sigma = 2.0
 
 
 ##############
@@ -82,7 +81,7 @@ ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
 ax.set_yticks([])
-ax.set_title("Samples from Learned Marginal ODE", fontsize=10)
+ax.set_title("Samples from Learned Marginal SDE", fontsize=10)
 
 # Plot source and target
 imshow_density(
@@ -108,8 +107,8 @@ imshow_density(
 
 
 # Construct integrator and plot trajectories
-ode = MartingaleLossSDE(model, sigma)
-simulator = EulerMaruyamaSimulator(ode)
+sde = MartingaleLossSDE(model, sigma)
+simulator = EulerMaruyamaSimulator(sde)
 x0 = path.p_simple.sample(num_samples)  # (num_samples, 2)
 ts = (
     torch.linspace(0.0, 1.0, num_timesteps)
@@ -142,7 +141,7 @@ ax.legend(prop={"size": legend_size}, loc="upper right", markerscale=markerscale
 # Graph Trajectories of Learned Marginal ODE #
 ##############################################
 ax = axes[2]
-ax.set_title("Trajectories of Learned Marginal ODE", fontsize=10)
+ax.set_title("Trajectories of Learned Marginal SDE", fontsize=10)
 ax.set_xlim(*x_bounds)
 ax.set_ylim(*y_bounds)
 ax.set_xticks([])
