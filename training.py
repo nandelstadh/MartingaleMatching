@@ -3,6 +3,8 @@ from tqdm import tqdm
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
+from torch.distributions.multivariate_normal import MultivariateNormal
+
 from distributions import *
 from paths import *
 from simulation import *
@@ -97,26 +99,27 @@ class MartingaleMatchingTrainer(Trainer):
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
 
-        z = self.path.p_data.sample(batch_size)
-        z = z.unsqueeze(1).repeat(1, self.steps, 1)
-        t = torch.linspace(0, 1, steps=self.steps).to(z)
-        t = t.unsqueeze(0).unsqueeze(2).repeat(batch_size, 1, 1)
-        x = self.path.sample_conditional_path(z, t)
         dt = 1 / (self.steps - 1)
+        z = self.path.p_data.sample(batch_size)
+        t = torch.rand(batch_size, 1).to(z) * (1 - dt)  # (bs, 1)
+        x = self.path.sample_conditional_path(z, t)
 
-        x_now = x[:, :-1, :]
-        x_next = x[:, 1:, :]
-        t_now = t[:, :-1, :]
+        b_theta = self.model(x, t)
+        mean = torch.zeros(self.dim)
+        covariance = torch.eye(self.dim)
+        mult_norm = MultivariateNormal(mean, covariance)
+        epsilon = mult_norm.sample((batch_size,))
 
-        b_theta = self.model(x_now, t_now)
+        # x_next = x + dt * b_theta + self.sigma * math.sqrt(dt) * epsilon
+        x_next = self.path.sample_conditional_path(z, t + dt)
 
-        grad, trace = self.tfunc.grad_and_trace(x_now)
+        grad, trace = self.tfunc.grad_and_trace(x)
 
-        drift = (grad * b_theta.unsqueeze(2)).sum(-1)
+        drift = (grad * b_theta.unsqueeze(1)).sum(-1)
         diffusion = self.sigma * self.sigma * trace
         generator = drift + 0.5 * diffusion
 
-        f_now = self.tfunc.func(x_now)
+        f_now = self.tfunc.func(x)
         f_next = self.tfunc.func(x_next)
 
         residual = f_next - f_now - dt * generator

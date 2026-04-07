@@ -34,14 +34,14 @@ class Polynomial(TestFunction):
         Returns:
         - f(x): (bs, t, dim + dim^2)
         """
-        _, _, dim = x.shape
+        _, dim = x.shape
 
         linear = x
 
         quad = []
         for i in range(dim):
             for j in range(dim):
-                quad.append((x[:, :, i] * x[:, :, j]).unsqueeze(-1))
+                quad.append((x[:, i] * x[:, j]).unsqueeze(-1))
         quad = torch.cat(quad, dim=-1)
 
         return torch.cat([linear, quad], dim=-1)
@@ -55,18 +55,18 @@ class Polynomial(TestFunction):
         - trace: (bs, t, K)
         """
 
-        batch_size, steps, dim = x.shape
+        batch_size, dim = x.shape
         device = x.device
 
         # Output dimension
         K = dim + dim * dim
 
-        grad = torch.zeros(batch_size, steps, K, dim, device=device)
-        trace = torch.zeros(batch_size, steps, K, device=device)
+        grad = torch.zeros(batch_size, K, dim, device=device)
+        trace = torch.zeros(batch_size, K, device=device)
 
         # Linear terms
         eye = torch.eye(dim, device=device)
-        grad[:, :, :dim, :] = eye.view(1, 1, dim, dim)
+        grad[:, :dim, :] = eye.view(1, dim, dim)
 
         # Nonlinear terms
         # indices
@@ -77,12 +77,12 @@ class Polynomial(TestFunction):
         eye = torch.eye(dim, device=device)
         e_i = eye[i_idx]  # (dim^2, dim)
         e_j = eye[j_idx]  # (dim^2, dim)
-        grad[:, :, dim:, :] = x[:, :, j_idx].unsqueeze(-1) * e_i.unsqueeze(0).unsqueeze(
-            0
-        ) + x[:, :, i_idx].unsqueeze(-1) * e_j.unsqueeze(0).unsqueeze(0)
+        grad[:, dim:, :] = x[:, j_idx].unsqueeze(-1) * e_i.unsqueeze(0) + x[
+            :, i_idx
+        ].unsqueeze(-1) * e_j.unsqueeze(0)
 
         # trace (Laplacian) of x_i x_j is 2 for i=j and 0 otherwise.
         diag_mask = i_idx == j_idx
-        trace[:, :, dim:] = (2.0 * diag_mask).view(1, 1, -1)
+        trace[:, dim:] = (2.0 * diag_mask).view(1, -1)
 
         return grad, trace
