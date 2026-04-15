@@ -30,7 +30,7 @@ num_epochs = 5000
 batch_size = 1000
 steps = 100
 dim = 2
-tfunc = Polynomial()
+tfunc = Hermite()
 sigma = 2.0
 # Construct trainer
 trainer = MartingaleMatchingTrainer(

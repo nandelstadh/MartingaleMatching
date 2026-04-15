@@ -30,9 +30,9 @@ class Polynomial(TestFunction):
     def func(self, x: torch.Tensor):
         """
         Args:
-        - x: (bs, t, dim)
+        - x: (bs, dim)
         Returns:
-        - f(x): (bs, t, dim + dim^2)
+        - f(x): (bs, dim + dim^2)
         """
         _, dim = x.shape
 
@@ -48,11 +48,14 @@ class Polynomial(TestFunction):
 
     def grad_and_trace(self, x: torch.Tensor):
         """
+        bs: batch size
+        dim: dimension of data
+        K: number of test funcs
         Args:
-        - x: (bs, t, dim)
+        - x: (bs, dim)
         Returns:
-        - grad: (bs, t, K, dim)
-        - trace: (bs, t, K)
+        - grad: (bs, K, dim)
+        - trace: (bs, K)
         """
 
         batch_size, dim = x.shape
@@ -84,5 +87,52 @@ class Polynomial(TestFunction):
         # trace (Laplacian) of x_i x_j is 2 for i=j and 0 otherwise.
         diag_mask = i_idx == j_idx
         trace[:, dim:] = (2.0 * diag_mask).view(1, -1)
+
+        return grad, trace
+
+
+class Hermite(TestFunction):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def func(self, x: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        Returns:
+        - f(x): (bs, 4*dim)
+        """
+        H_zero = torch.ones_like(x)
+        H_one = x
+        H_two = x**2 + 1
+        H_three = x**3 - 3 * x
+        return torch.cat([H_zero, H_one, H_two, H_three], dim=-1)
+
+    def grad_and_trace(self, x: torch.Tensor):
+        """
+        bs: batch size
+        dim: dimension of data
+        K: number of test funcs
+        Args:
+        - x: (bs, dim)
+        Returns:
+        - grad: (bs, 4*dim, dim)
+        - trace: (bs, 4*dim)
+        """
+
+        batch_size, dim = x.shape
+        device = x.device
+
+        grad = torch.zeros(batch_size, 4 * dim, dim, device=device)
+        trace = torch.zeros(batch_size, 4 * dim, device=device)
+
+        # grad[:, :dim, :] = torch.zeros(batch_size, dim, dim)
+        grad[:, dim : 2 * dim, :] = torch.eye(dim).unsqueeze(0)
+        grad[:, 2 * dim : 3 * dim, :] = 2 * torch.diag_embed(x)
+        grad[:, 3 * dim :, :] = 3 * (torch.diag_embed(x) ** 2) - 3
+
+        # trace[:,:2*dim] = torch.zeros(batch_size, 2*dim)
+        trace[:, 2 * dim : 3 * dim] = 2
+        trace[:, 3 * dim :] = 9 * x
 
         return grad, trace

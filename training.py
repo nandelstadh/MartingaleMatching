@@ -105,12 +105,13 @@ class MartingaleMatchingTrainer(Trainer):
         x = self.path.sample_conditional_path(z, t)
 
         b_theta = self.model(x, t)
-        mean = torch.zeros(self.dim)
-        covariance = torch.eye(self.dim)
-        mult_norm = MultivariateNormal(mean, covariance)
-        epsilon = mult_norm.sample((batch_size,))
 
+        # mean = torch.zeros(self.dim)
+        # covariance = torch.eye(self.dim)
+        # mult_norm = MultivariateNormal(mean, covariance)
+        # epsilon = mult_norm.sample((batch_size,))
         # x_next = x + dt * b_theta + self.sigma * math.sqrt(dt) * epsilon
+
         x_next = self.path.sample_conditional_path(z, t + dt)
 
         grad, trace = self.tfunc.grad_and_trace(x)
