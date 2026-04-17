@@ -102,7 +102,7 @@ class MartingaleMatchingTrainer(Trainer):
         dt = 1 / (self.steps - 1)
         z = self.path.p_data.sample(batch_size)
         t = torch.rand(batch_size, 1).to(z) * (1 - dt)  # (bs, 1)
-        x = self.path.sample_conditional_path(z, t)
+        x, x_next = self.path.sample_conditional_path(z, t)
 
         b_theta = self.model(x, t)
 
@@ -111,8 +111,6 @@ class MartingaleMatchingTrainer(Trainer):
         # mult_norm = MultivariateNormal(mean, covariance)
         # epsilon = mult_norm.sample((batch_size,))
         # x_next = x + dt * b_theta + self.sigma * math.sqrt(dt) * epsilon
-
-        x_next = self.path.sample_conditional_path(z, t + dt)
 
         grad, trace = self.tfunc.grad_and_trace(x)
 

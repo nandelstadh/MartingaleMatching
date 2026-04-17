@@ -7,6 +7,8 @@ from torch.func import jacrev, vmap
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+from torch.distributions.multivariate_normal import MultivariateNormal
+
 from distributions import *
 from simulation import *
 
@@ -33,7 +35,7 @@ class ConditionalProbabilityPath(torch.nn.Module, ABC):
         # Sample conditioning variable z ~ p(z)
         z = self.sample_conditioning_variable(num_samples)  # (num_samples, dim)
         # Sample conditional probability path x ~ p_t(x|z)
-        x = self.sample_conditional_path(z, t)  # (num_samples, dim)
+        x, _ = self.sample_conditional_path(z, t)  # (num_samples, dim)
         return x
 
     @abstractmethod
@@ -48,7 +50,9 @@ class ConditionalProbabilityPath(torch.nn.Module, ABC):
         pass
 
     @abstractmethod
-    def sample_conditional_path(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def sample_conditional_path(
+        self, z: torch.Tensor, t: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Samples from the conditional distribution p_t(x|z)
         Args:
@@ -195,11 +199,15 @@ class SquareRootBeta(Beta):
 
 
 class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
-    def __init__(self, p_data: Sampleable, alpha: Alpha, beta: Beta):
+    def __init__(
+        self, p_data: Sampleable, alpha: Alpha, beta: Beta, dt: float, sigma: float
+    ):
         p_simple = Gaussian.isotropic(p_data.dim, 1.0)
         super().__init__(p_simple, p_data)
         self.alpha = alpha
         self.beta = beta
+        self.dt = dt
+        self.sigma = sigma
 
     def sample_conditioning_variable(self, num_samples: int) -> torch.Tensor:
         """
@@ -211,7 +219,9 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
         """
         return self.p_data.sample(num_samples)
 
-    def sample_conditional_path(self, z: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def sample_conditional_path(
+        self, z: torch.Tensor, t: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Samples from the conditional distribution p_t(x|z) = N(alpha_t * z, beta_t**2 * I_d)
         Args:
@@ -220,4 +230,10 @@ class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):
         Returns:
             - x: samples from p_t(x|z), (num_samples, dim)
         """
-        return self.alpha(t) * z + self.beta(t) * torch.randn_like(z)
+        eps = torch.randn_like(z)
+        noise = torch.randn_like(z)
+        return (
+            self.alpha(t) * z + self.beta(t) * eps,
+            self.alpha(t + self.dt) * z + self.beta(t + self.dt) * eps,
+            # + self.sigma * math.sqrt(self.dt) * noise,
+        )

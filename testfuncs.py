@@ -100,13 +100,14 @@ class Hermite(TestFunction):
         Args:
         - x: (bs, dim)
         Returns:
-        - f(x): (bs, 4*dim)
+        - f(x): (bs, 5*dim)
         """
         H_zero = torch.ones_like(x)
         H_one = x
-        H_two = x**2 + 1
+        H_two = x**2 - 1
         H_three = x**3 - 3 * x
-        return torch.cat([H_zero, H_one, H_two, H_three], dim=-1)
+        H_four = x**4 - 6 * x**2 + 3
+        return torch.cat([H_zero, H_one, H_two, H_three, H_four], dim=-1)
 
     def grad_and_trace(self, x: torch.Tensor):
         """
@@ -116,23 +117,29 @@ class Hermite(TestFunction):
         Args:
         - x: (bs, dim)
         Returns:
-        - grad: (bs, 4*dim, dim)
-        - trace: (bs, 4*dim)
+        - grad: (bs, 5*dim, dim)
+        - trace: (bs, 5*dim)
         """
 
         batch_size, dim = x.shape
         device = x.device
 
-        grad = torch.zeros(batch_size, 4 * dim, dim, device=device)
-        trace = torch.zeros(batch_size, 4 * dim, device=device)
+        grad = torch.zeros(batch_size, 5 * dim, dim, device=device)
+        trace = torch.zeros(batch_size, 5 * dim, device=device)
 
         # grad[:, :dim, :] = torch.zeros(batch_size, dim, dim)
         grad[:, dim : 2 * dim, :] = torch.eye(dim).unsqueeze(0)
         grad[:, 2 * dim : 3 * dim, :] = 2 * torch.diag_embed(x)
-        grad[:, 3 * dim :, :] = 3 * (torch.diag_embed(x) ** 2) - 3
+        grad[:, 3 * dim : 4 * dim, :] = 3 * (torch.diag_embed(x) ** 2) - 3 * (
+            torch.eye(dim).unsqueeze(0)
+        )
+        grad[:, 4 * dim : 5 * dim, :] = 4 * (torch.diag_embed(x) ** 3) - 12 * (
+            torch.diag_embed(x)
+        )
 
         # trace[:,:2*dim] = torch.zeros(batch_size, 2*dim)
         trace[:, 2 * dim : 3 * dim] = 2
-        trace[:, 3 * dim :] = 9 * x
+        trace[:, 3 * dim : 4 * dim] = 6 * x
+        trace[:, 4 * dim : 5 * dim] = 12 * x**2 - 12
 
         return grad, trace

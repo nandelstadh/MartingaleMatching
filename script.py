@@ -15,6 +15,15 @@ from training import *
 # # Part 3: Flow Matching and Score Matching with Gaussian Conditional Probability Paths
 #
 
+
+num_epochs = 5000
+batch_size = 10000
+steps = 1000
+dim = 2
+tfunc = Polynomial()
+sigma = 0.5
+dt = 1 / (steps - 1)
+
 # Construct conditional probability path
 path = GaussianConditionalProbabilityPath(
     p_data=GaussianMixture.symmetric_2D(
@@ -22,16 +31,12 @@ path = GaussianConditionalProbabilityPath(
     ).to(device),
     alpha=LinearAlpha(),
     beta=SquareRootBeta(),
+    dt=dt,
+    sigma=sigma,
 ).to(device)
 
 model = MLPDrift(dim=2, hiddens=[64, 64, 64, 64])
 
-num_epochs = 5000
-batch_size = 1000
-steps = 100
-dim = 2
-tfunc = Hermite()
-sigma = 2.0
 # Construct trainer
 trainer = MartingaleMatchingTrainer(
     path,
@@ -50,9 +55,10 @@ losses = trainer.train(
 #######################
 # Change these values #
 #######################
-num_samples = 5000
+num_samples = 1000
 num_timesteps = 300
 num_marginals = 3
+sigma_plot = 0.5
 
 
 ##############
@@ -104,7 +110,7 @@ imshow_density(
 
 
 # Construct integrator and plot trajectories
-sde = MartingaleLossSDE(model, sigma)
+sde = MartingaleLossSDE(model, sigma_plot)
 simulator = EulerMaruyamaSimulator(sde)
 x0 = path.p_simple.sample(num_samples)  # (num_samples, 2)
 ts = (
