@@ -20,7 +20,7 @@ num_epochs = 5000
 batch_size = 10000
 steps = 1000
 dim = 2
-tfunc = Polynomial()
+tfunc = FourierFeatures()
 sigma = 0.5
 dt = 1 / (steps - 1)
 

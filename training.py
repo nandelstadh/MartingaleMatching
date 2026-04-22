@@ -86,7 +86,7 @@ class MartingaleMatchingTrainer(Trainer):
         model: MLPDrift,
         steps: int,
         dim: int,
-        tfunc: Polynomial,
+        tfunc: TestFunction,
         sigma: float,
         **kwargs,
     ):
@@ -103,6 +103,7 @@ class MartingaleMatchingTrainer(Trainer):
         z = self.path.p_data.sample(batch_size)
         t = torch.rand(batch_size, 1).to(z) * (1 - dt)  # (bs, 1)
         x, x_next = self.path.sample_conditional_path(z, t)
+        w = torch.rand_like(x.repeat(1, 50))
 
         b_theta = self.model(x, t)
 
@@ -112,14 +113,14 @@ class MartingaleMatchingTrainer(Trainer):
         # epsilon = mult_norm.sample((batch_size,))
         # x_next = x + dt * b_theta + self.sigma * math.sqrt(dt) * epsilon
 
-        grad, trace = self.tfunc.grad_and_trace(x)
+        grad, trace = self.tfunc.grad_and_trace(x, w)
 
         drift = (grad * b_theta.unsqueeze(1)).sum(-1)
         diffusion = self.sigma * self.sigma * trace
         generator = drift + 0.5 * diffusion
 
-        f_now = self.tfunc.func(x)
-        f_next = self.tfunc.func(x_next)
+        f_now = self.tfunc.func(x, w)
+        f_next = self.tfunc.func(x_next, w)
 
         residual = f_next - f_now - dt * generator
         mse = torch.mean(residual**2)

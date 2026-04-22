@@ -143,3 +143,61 @@ class Hermite(TestFunction):
         trace[:, 4 * dim : 5 * dim] = 12 * x**2 - 12
 
         return grad, trace
+
+
+class FourierFeatures(TestFunction):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _phase(self, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        if w.ndim != 2 or w.shape[0] != x.shape[0]:
+            raise ValueError("w must have shape (batch_size, num_frequencies)")
+        _, dim = x.shape
+        if w.shape[1] % dim != 0:
+            raise ValueError("w.shape[1] must be a multiple of x.shape[1]")
+        return w * x.repeat(1, w.shape[1] // dim)
+
+    def func(self, x: torch.Tensor, w: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        - w: (bs, 50*dim)
+        Returns:
+        - f(x): (bs, 100*dim)
+        """
+        phase = self._phase(x, w)
+        cos = torch.cos(phase)
+        sin = torch.sin(phase)
+        return torch.cat([cos, sin], dim=-1)
+
+    def grad_and_trace(self, x: torch.Tensor, w: torch.Tensor):
+        """
+        Args:
+        - x: (bs, dim)
+        - w: (bs, 50*dim)
+        Returns:
+        - grad: (bs, 100*dim, dim)
+        - trace: (bs, 100*dim)
+        """
+        batch_size, dim = x.shape
+        device = x.device
+        phase = self._phase(x, w)
+        num_freq = w.shape[1]
+
+        grad = torch.zeros(batch_size, 2 * num_freq, dim, device=device, dtype=x.dtype)
+        trace = torch.zeros(batch_size, 2 * num_freq, device=device, dtype=x.dtype)
+
+        freq_to_dim = (torch.arange(num_freq, device=device) % dim).view(1, num_freq, 1)
+        freq_to_dim = freq_to_dim.expand(batch_size, -1, 1)
+
+        grad[:, :num_freq, :].scatter_(
+            2, freq_to_dim, (-torch.sin(phase) * w).unsqueeze(-1)
+        )
+        grad[:, num_freq:, :].scatter_(
+            2, freq_to_dim, (torch.cos(phase) * w).unsqueeze(-1)
+        )
+
+        w_sq = w * w
+        trace[:, :num_freq] = -w_sq * torch.cos(phase)
+        trace[:, num_freq:] = -w_sq * torch.sin(phase)
+        return grad, trace
