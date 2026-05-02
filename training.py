@@ -113,14 +113,14 @@ class MartingaleMatchingTrainer(Trainer):
         # epsilon = mult_norm.sample((batch_size,))
         # x_next = x + dt * b_theta + self.sigma * math.sqrt(dt) * epsilon
 
-        grad, trace = self.tfunc.grad_and_trace(x, w)
+        grad, trace = self.tfunc.grad_and_trace(x)
 
         drift = (grad * b_theta.unsqueeze(1)).sum(-1)
         diffusion = self.sigma * self.sigma * trace
         generator = drift + 0.5 * diffusion
 
-        f_now = self.tfunc.func(x, w)
-        f_next = self.tfunc.func(x_next, w)
+        f_now = self.tfunc.func(x)
+        f_next = self.tfunc.func(x_next)
 
         residual = f_next - f_now - dt * generator
         mse = torch.mean(residual**2)

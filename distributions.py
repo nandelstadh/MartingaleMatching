@@ -3,6 +3,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 import torch
 import torch.distributions as D
+import torchvision
+import torchvision.transforms as transforms
+from sklearn.datasets import make_circles, make_moons
+from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -157,3 +161,195 @@ class GaussianMixture(torch.nn.Module, Sampleable, Density):
         covs = torch.diag_embed(torch.ones(nmodes, 2) * std**2)
         weights = torch.ones(nmodes) / nmodes
         return cls(means, covs, weights)
+
+
+class MoonsSampleable(Sampleable):
+    """
+    Implementation of the Moons distribution using sklearn's make_moons
+    """
+
+    def __init__(
+        self,
+        device: torch.device,
+        noise: float = 0.05,
+        scale: float = 5.0,
+        offset: Optional[torch.Tensor] = None,
+    ):
+        """
+        Args:
+            noise: Standard deviation of Gaussian noise added to the data
+            scale: How much to scale the data
+            offset: How much to shift the samples from the original distribution (2,)
+        """
+        self.noise = noise
+        self.scale = scale
+        self.device = device
+        if offset is None:
+            offset = torch.zeros(2)
+        self.offset = offset.to(device)
+
+    @property
+    def dim(self) -> int:
+        return 2
+
+    def sample(self, num_samples: int) -> torch.Tensor:
+        """
+        Args:
+            num_samples: Number of samples to generate
+        Returns:
+            torch.Tensor: Generated samples with shape (num_samples, 3)
+        """
+        samples, _ = make_moons(
+            n_samples=num_samples,
+            noise=self.noise,
+            random_state=None,  # Allow for random generation each time
+        )
+        return (
+            self.scale * torch.from_numpy(samples.astype(np.float32)).to(self.device)
+            + self.offset
+        )
+
+
+class CirclesSampleable(Sampleable):
+    """
+    Implementation of concentric circle distribution using sklearn's make_circles
+    """
+
+    def __init__(
+        self,
+        device: torch.device,
+        noise: float = 0.05,
+        scale=5.0,
+        offset: Optional[torch.Tensor] = None,
+    ):
+        """
+        Args:
+            noise: standard deviation of Gaussian noise added to the data
+        """
+        self.noise = noise
+        self.scale = scale
+        self.device = device
+        if offset is None:
+            offset = torch.zeros(2)
+        self.offset = offset.to(device)
+
+    @property
+    def dim(self) -> int:
+        return 2
+
+    def sample(self, num_samples: int) -> torch.Tensor:
+        """
+        Args:
+            num_samples: number of samples to generate
+        Returns:
+            torch.Tensor: shape (num_samples, 3)
+        """
+        samples, _ = make_circles(
+            n_samples=num_samples, noise=self.noise, factor=0.5, random_state=None
+        )
+        return (
+            self.scale * torch.from_numpy(samples.astype(np.float32)).to(self.device)
+            + self.offset
+        )
+
+
+class CheckerboardSampleable(Sampleable):
+    """
+    Checkboard-esque distribution
+    """
+
+    def __init__(self, device: torch.device, grid_size: int = 3, scale=5.0):
+        """
+        Args:
+            noise: standard deviation of Gaussian noise added to the data
+        """
+        self.grid_size = grid_size
+        self.scale = scale
+        self.device = device
+
+    @property
+    def dim(self) -> int:
+        return 2
+
+    def sample(self, num_samples: int) -> torch.Tensor:
+        """
+        Args:
+            num_samples: number of samples to generate
+        Returns:
+            torch.Tensor: shape (num_samples, 3)
+        """
+        grid_length = 2 * self.scale / self.grid_size
+        samples = torch.zeros(0, 2).to(device)
+        while samples.shape[0] < num_samples:
+            # Sample num_samples
+            new_samples = (
+                (torch.rand(num_samples, 2).to(self.device) - 0.5) * 2 * self.scale
+            )
+            x_mask = (
+                torch.floor((new_samples[:, 0] + self.scale) / grid_length) % 2 == 0
+            )  # (bs,)
+            y_mask = (
+                torch.floor((new_samples[:, 1] + self.scale) / grid_length) % 2 == 0
+            )  # (bs,)
+            accept_mask = torch.logical_xor(~x_mask, y_mask)
+            samples = torch.cat([samples, new_samples[accept_mask]], dim=0)
+        return samples[:num_samples]
+
+
+class DigitsSampleable(Sampleable):
+    """
+    Implementation of the MNIST distribution
+    """
+
+    def __init__(
+        self,
+        batch_size: int,
+        device: torch.device,
+    ):
+        """
+        Args:
+            noise: Standard deviation of Gaussian noise added to the data
+            scale: How much to scale the data
+            offset: How much to shift the samples from the original distribution (2,)
+        """
+        self.batch_size = batch_size
+        self.device = device
+        # Define transformations for the images
+        transform = transforms.Compose(
+            [
+                transforms.ToTensor(),  # Convert images to PyTorch tensors
+                transforms.Normalize(
+                    (0.1307,), (0.3081,)
+                ),  # Normalize with MNIST mean and std
+                transforms.Lambda(lambda x: x.view(-1)),  # (784,)
+            ]
+        )
+
+        # Load the training dataset
+        train_dataset = torchvision.datasets.MNIST(
+            root="./data",  # Where to store the dataset
+            train=True,  # This is training data
+            download=True,  # Download if not present
+            transform=transform,  # Apply transformations
+        )
+
+        # Load the test dataset
+        test_dataset = torchvision.datasets.MNIST(
+            root="./data", train=False, download=True, transform=transform
+        )
+
+        # Create data loaders for batch processing
+        self.train_loader = DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=True
+        )
+        self.test_loader = DataLoader(
+            test_dataset, batch_size=batch_size, shuffle=False
+        )
+
+    @property
+    def dim(self) -> int:
+        return 2
+
+    def sample(self, num_samples: int) -> torch.Tensor:
+        samples, _ = next(iter(self.train_loader))
+        return samples

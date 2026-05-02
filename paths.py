@@ -64,19 +64,6 @@ class ConditionalProbabilityPath(torch.nn.Module, ABC):
         pass
 
 
-# Setup for the Gaussian case
-PARAMS = {
-    "scale": 15.0,
-    "target_scale": 10.0,
-    "target_std": 1.0,
-}
-
-p_simple = Gaussian.isotropic(dim=2, std=1.0).to(device)
-p_data = GaussianMixture.symmetric_2D(
-    nmodes=5, std=PARAMS["target_std"], scale=PARAMS["target_scale"]
-).to(device)
-
-
 # Implementing abstract classes for alpha and beta
 
 

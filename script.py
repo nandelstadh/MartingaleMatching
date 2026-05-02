@@ -15,9 +15,20 @@ from training import *
 # # Part 3: Flow Matching and Score Matching with Gaussian Conditional Probability Paths
 #
 
+PARAMS = {
+    "scale": 15.0,
+    "target_scale": 10.0,
+    "target_std": 1.0,
+}
+
+p_simple = Gaussian.isotropic(dim=2, std=1.0).to(device)
+p_data = GaussianMixture.symmetric_2D(
+    nmodes=5, std=PARAMS["target_std"], scale=PARAMS["target_scale"]
+).to(device)
+
 
 num_epochs = 5000
-batch_size = 10000
+batch_size = 1000
 steps = 1000
 dim = 2
 tfunc = FourierFeatures()
