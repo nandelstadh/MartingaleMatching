@@ -1,0 +1,774 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Uppsala University Assignment Title Page 
+% LaTeX Template
+% Version 1.0 (27/12/12)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% Original author:
+% WikiBooks (http://en.wikibooks.org/wiki/LaTeX/Title_Creation)
+% Modified by Elsa Slattegard to fit Uppsala university
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+
+%\title{Title page with logo}
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[12pt]{article}
+\usepackage{longtable}
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{multirow} % needed for tables
+\usepackage{listings} % needed for code inclusion
+\setlength {\marginparwidth}{2cm}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float}
+\usepackage{biblatex}
+\usepackage{amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amssymb}
+\usepackage{csquotes}
+\usepackage{amsmath}
+
+\graphicspath{{../pdf/}{./MMPics/}}
+
+
+ % this chunk defines the colors for code inclusion
+\lstset{
+    language=python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{purple},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    breaklines=true,
+    frame=single,
+    tabsize=4
+}
+
+\addbibresource{references.bib}
+
+\newtheoremstyle{break}
+  {\topsep}{\topsep}%
+  {\itshape}{}%
+  {\bfseries}{}%
+  {\newline}{}%
+\theoremstyle{break}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}{Theorem}[section]
+
+\newcommand\at[2]{\left.#1\right|_{#2}}
+
+\begin{document}
+
+\begin{titlepage}
+
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for the horizontal lines, change thickness here
+
+\center % Center everything on the page
+ 
+%----------------------------------------------------------------------------------------
+%	HEADING SECTIONS
+%----------------------------------------------------------------------------------------
+
+\textsc{\LARGE Uppsala University}\\[1.5cm] % Name of your university/college
+\includegraphics[scale=.1]{Uppsala_University_seal_svg.png}\\[1cm] % Include a department/university logo - this will require the graphicx package
+\textsc{\Large Bachelor's Thesis}\\[0.5cm] % Major heading such as course name
+% \textsc{\large 1TD070}\\[0.5cm] % Minor heading such as course title
+
+%----------------------------------------------------------------------------------------
+%	TITLE SECTION
+%----------------------------------------------------------------------------------------
+
+\HRule \\[0.4cm]
+{ \huge \bfseries Martingale Matching}\\[0.4cm] % Title of your document
+\HRule \\[1.5cm]
+ 
+%----------------------------------------------------------------------------------------
+%	AUTHOR SECTION
+%----------------------------------------------------------------------------------------
+
+\begin{minipage}{0.4\textwidth}
+\begin{flushleft} \large
+\emph{Authors:}\\
+Anton \textsc{von Nandelstadh}\\% Your name
+\end{flushleft}
+
+\end{minipage}\\[2cm]
+
+% If you don't want a supervisor, uncomment the two lines below and remove the section above
+% \Large \emph{Author:}\\
+% Benny \textsc{Avelin}\\[3cm] % Your name
+
+%----------------------------------------------------------------------------------------
+%	DATE SECTION
+%----------------------------------------------------------------------------------------
+
+{\large \today}\\[2cm] % Date, change the \today to a set date if you want to be precise
+
+\vfill % Fill the rest of the page with whitespace
+
+\end{titlepage}
+
+\section{Introduction}
+
+Our discussions regarding the framework of flow/score matching mostly follow the conventions used by \cite{lipman2024}, \cite{holderrieth2026}. Specifically, we consider the SDE we want to learn as moving forward in time, unlike the theory of time-reversal used in the older theory of score matching, as considered in \cite{song2021}.
+
+\section{Background}
+\subsection{SDE Preliminaries}
+%Math part goes first
+In order to understand denoising diffusion models, we first need to go through some preliminaries regarding stochastic processes and stochastic differential equations. In what follows, we assume basic knowledge of measure theory.
+
+\begin{definition}[Filtration]
+	Let $(\Omega, \mathcal{F}, P)$ be a probability space and let $T$ be an index set. For each $i \in T$, let $\mathcal{F}_i$ be a sub-$\sigma$-algebra of $\mathcal{F}$. Then $\{\mathcal{F}_i\}_{i \in T}$ is a filtration if $\mathcal{F}_k \subset \mathcal{F}_l$ for each $k \leq l$. Then $(\Omega, \mathcal{F}, \{\mathcal{F}_t\}, P)$ is called a filtered probability space.
+\end{definition}
+
+\begin{definition}[Martingale]
+	A stochastic process $X:T \times \Omega \to \mathbb{R}$ on probability space $(\Omega, \mathcal{F}, P)$ is a martingale w.r.t. the filtration $\{\mathcal{F}\}$ (of $(\Omega, \mathcal{F}, P)$) if
+	\begin{enumerate}
+		\item
+		X is adapted to the filtration. That is, $X_t$ is $\mathcal{F}_t$ measurable for each $t \in T$.
+		\item
+			for each $t$, $\mathbb{E}[X_t] < \infty$
+		\item
+			for all $s$ and $t$ with $s < t$, $\mathbb{E}[X_t|\mathcal{F}_s] = X_s.$
+	\end{enumerate}
+\end{definition}
+
+We intend to construct the Itô integral, which will be essential in our defintion of stochastic differential equations. The exposition of the construction follows \cite{oksendal2013}. We begin by defining the class $\nu$ of functions for which the Itô integral will exist. 
+
+\begin{definition}
+	Let $\nu = \nu(S, T)$ be the class of functions
+	\begin{equation*}
+		f(t, \omega):[0,\infty) \times \Omega \to \mathbb{R}
+	\end{equation*}
+	such that
+	\begin{enumerate}
+		\item
+			$(t, \omega) \to f(t, \omega)$ is $\mathcal{B} \times \mathcal{F}$ measurable, where $\mathcal{B}$ denotes the Borel $\sigma$-algebra on $[0, \infty).$
+		\item
+			$f(t, \omega)$ is $\mathcal{F}_t$-adapted
+		\item 
+			$\mathbb{E}[\int_S^T f(t, \omega)^2 dt] < \infty$
+	\end{enumerate}
+\end{definition}
+
+Similarly to how we constructed the Lebesgue integral in analysis from simple functions, we will define a set of elementary functions, and show that the integral of $f \in \nu$ can be defined as an $L^2$ limit of these elementary functions. We define an elementary functions as follows:
+
+\begin{definition}[Elementary function]
+	A function $\phi \in \nu$ is called elementary if it has the form
+	\begin{equation}
+		\phi(t, \omega) = \sum_j e_j(\omega) \chi_{[t_j, t_{j+1})}(t).
+	\end{equation}
+\end{definition}
+
+Now, again similarly to how we do Lebesgue integration, we define the integral of these elementary functions in the following way:
+
+\begin{definition}[Integral of an elementary function]
+	For elementary function $\phi(t, \omega)$, the integral is defined according to
+	\begin{equation}
+		\int_S^T \phi(t, \omega) dB_t(\omega) = \sum_{j \geq 0} e_j(\omega)[B_{t_j + 1} - B_{t_j}](\omega).
+	\end{equation}
+\end{definition}
+
+The identity on which we will base our construction is the Itô isometry.
+
+\begin{definition}[Itô isometry for elementary functions]
+	If $\phi(t, \omega)$ is bounded and elementary, then
+	\begin{equation}
+		\mathbb{E}\left[ \left( \int_S^T \phi(t, \omega)dB_t\right)^2\right] = \mathbb{E}\left[ \int_S^T \phi(t, \omega)^2 dt \right]
+	\end{equation}
+\end{definition}
+
+\begin{proof}
+	Write $\Delta B_j = B_{t_j + 1} - B_{t_j}$. Then
+	\begin{equation*}
+			\mathbb{E}[e_i e_j\Delta B_i \Delta B_j] = \left.
+		\begin{cases}
+			0 & \text{if } i\neq j \\
+			\mathbb[e_j^2](t_{j+1} - t_j) & \text{if } i = j.
+		\end{cases}
+		\right.
+	\end{equation*}
+	By independence of $e_i e_j \Delta B_i$ and $\Delta B_j$ with $i<j$, we get
+	\begin{align*}
+		\mathbb{E}\left[\left( \int_S^T \psi dB\right)^2\right]
+		&= \sum_{i,j}\mathbb{E}[e_ie_j\Delta B_i \Delta B_j] \\
+		&= \sum_j \mathbb{E}[e_j^2](t_{j+1} - t_j) \\
+		&= \mathbb{E}\left[ \int_S^T \phi^2 dt \right]
+	\end{align*}
+\end{proof}
+
+
+We are then ready to extend the definition of the integral, from elementary functions to arbitrary $f \in \nu$, using the Itô isometry. The following section follows \cite{oksendal2013} closely. For a more detailed proof, especially of the subtleties regarding measurability, see e.g. \cite{karatzas1998}. \\
+
+\textbf{Step 1.} Let $g \in \nu$ be bounded and $g(\cdot,\omega)$ continuous for each $\omega$. Then there exist elementary functions $\phi_n \in \nu$ such that
+
+\begin{equation*}
+	\mathbb{E}\left[ \int_S^T (g-\phi_n)^2 dt \right] \to 0 \quad \text{as } n \to \infty.
+\end{equation*}
+
+\begin{proof}
+	Define $\phi_n(t, \omega) = \sum_j g(t_j, \omega) \chi_{[t_j, t_{j+1})}(t)$. Then $\phi_n$ is elementary, and
+	\begin{equation}
+		\int_S^T (g-\phi_n)^2 dt \to 0 \quad \text{as } n \to \infty \text{ pointwise}
+	\end{equation}
+	since $g(\cdot, \omega)$ is continuous for fixed $\omega$. Hence the result follows by bounded convergence.
+\end{proof}
+
+\textbf{Step 2.} Let $h \in \nu$ be bounded. Then there exist bounded functions $g_n \in \nu$ such that $g_n(\cdot,\omega)$ is continuous for all $\omega$ and n, and
+
+\begin{equation*}
+	\mathbb{E}\left[ \int_S^T (h - g_n)^2 dt\right] \to 0.
+\end{equation*}
+
+\begin{proof}
+	Suppose $|h| \leq M$. For each $n$, let $\phi_n \geq 0$ be a continuous function on $\mathbb{R}$ such that
+	\begin{enumerate}
+		\item
+			$\phi_n(x) n= 0$ for $x \leq -\frac{1}{n}$ and $x \geq 0$
+		\item
+			$\int_{-\infty}^{\infty} \phi_n (x) dx = 1$
+	\end{enumerate}
+	Define
+	\begin{equation*}
+		g_n(t, \omega) = \int_0^t \phi_n(s-t)h(s, \omega)ds.
+	\end{equation*}
+	Then $g_n(\cdot, \omega)$ is continuous for each $\omega$ and $|g_n(t, \omega)| \leq M$. Moreover,
+	\begin{equation}
+		\int_S^T (g_n(s,\omega) - h(s,\omega))^2 ds \to 0 \quad \text{as } n \to \infty
+	\end{equation}
+	By bounded convergence we get that
+	\begin{equation*}
+		\mathbb{E}\left[ \int_S^T(h(t, \omega) - g_n(t, \omega))^2dt\right] \to 0 \quad \text{as } n \to \infty.
+	\end{equation*}
+\end{proof}
+
+We skimmed over some details regarding measurability and convergence here. The interested reader is refered to \cite{karatzas1998}.
+
+\textbf{Step 3.} Let $f \in \nu$. Then there exists a sequence $\{h_n\} \subset \nu$ such that $h_n$ is bounded for each $n$ and
+
+\begin{equation*}
+	\mathbb{E}\left[ \int_S^T (f - h_n)^2 dt\right] \to 0 \quad \text{as } n \to \infty.
+\end{equation*}
+
+\begin{proof}
+	Write
+	\begin{equation*}
+		h_n(t, \omega) = \left.
+	\begin{cases}
+		-n & \text{for } f(t, \omega) < -n \\
+		f(t, \omega) & \text{for } -n \leq f(t, \omega) \leq n \\
+		n & \text{for } f(t, \omega) > n.
+	\end{cases}
+	\right.
+	\end{equation*}
+	Then the result follows by dominated convergence.
+\end{proof}
+
+Now by the previous steps, for $f \in \nu$ we can choose elementary functions $\phi_n \in \nu$ converging to $f$ in $L^2$ norm. Hence we can define
+
+\begin{equation*}
+	\int_S^T f(t, \omega) dB_t(\omega) := \lim_{n \to \infty}\int_S^T \phi_n(t, \omega)dB_t(\omega)
+\end{equation*}
+
+The limit exists in $L^2$ since the set of integrals $\int_S^T \phi_n(t, \omega)dB_t$ forms a Cauchy sequence in $L^2$ by the Itô isometry. In short, we get the defintion below.
+
+\begin{definition}[Itô integral]
+	Let $f \in \nu(S,T)$. Then the Itô integral of $f$ (from $S$ to $T$) is defined by
+	\begin{equation}
+		\int_S^T f(t, \omega)dB_t(\omega) = \lim_{n \to \infty} \int_S^T \phi_n(t_, \omega)dB_t(\omega)
+	\end{equation}
+	where $\{\phi_n\}$ is a sequence of elementary functions such that
+	\begin{equation}
+		\mathbb{E}\left[\int_S^T(f(t, \omega) - \phi_n(t, \omega))^2dt\right] \to 0 \quad \text{as } n \to \infty
+	\end{equation}
+\end{definition}
+
+Now we are ready to define stochastic differential equations. Since the most important (and the only we will use) integrator for stochastic integrals is Brownian motion, which is nowhere differentiable, we choose to define stochastic differential equations in terms of integrals rather than derivatives.
+
+\begin{definition}[Stochastic differential equation]
+	A process $X_t$ satisfies the stochastic differential equation
+	\begin{equation}
+		dX_t = b(t, X_t)dt + \sigma(t, X_t)dB_t
+	\end{equation}
+	if it satisfies the integral equation
+	\begin{equation}
+		\label{eq:sde}
+		X_t = X_0 + \int_0^t b(s, X_s) ds + \int_0^t \sigma (s, X_s) dB_s
+	\end{equation}
+\end{definition}
+
+In order for an SDE to possess solutions, we must impose conditions on $\sigma$ and $b$. The proof of the following theorem is similar to the ODE case, where the proof of existence uses Picard iteration, and the proof of uniquencess uses the Itô isometry and the Lipschitz condition. The interested reader is refered to \cite{oksendal2013} or \cite{karatzas1998}.
+
+\begin{theorem}[Existence and uniquencess of SDEs]
+	\label{thm:existence}
+	Let $T>0$ and $b:[0,T] \times \mathbb{R}^n \to \mathbb{R}^n, \sigma:[0, T] \times \mathbb{R}^n \to \mathbb{R}^{n \times m}$ be measurable functions satisfying
+	\begin{equation}
+		|b(t, x)| + |\sigma(t, x)| \leq C(1 + |x|) \quad x\in\mathbb{R}^n, t\in [0,T]
+	\end{equation}
+	for some constant $C$, $|\sigma|^2 = \sum|\sigma_{ij}|^2$, and such that
+	\begin{equation}
+		|b(t, x) - b(t,y)| + |\sigma(t,x)-\sigma(t,y)| \leq D|x-y| \quad x,y\in \mathbb{R}^n, t\in[0,T]
+	\end{equation}
+	for some constant D. Let Z be a random variable which is independent of the $\sigma$-algebra $F_\infty$ generated by $B_s$, $s \geq 0$, and such that
+	\begin{equation}
+		\mathbb{E}[|Z|^2] < \infty.
+	\end{equation}
+	Then the stochastic differential equation 
+	\begin{equation}
+		dX_t = b(t, X_t)dt + \sigma(t, X_t)dB_t, \quad 0 \leq t \leq T, X_0 = Z
+	\end{equation}
+	has unique continuous (in t) solution $X_t$ with the property that $X_t$ is adapted to the filtration $\mathcal{F}_t^Z$ generated by $Z$ and $B_s, s \leq t$ and
+	\begin{equation}
+		\mathbb{E}\left[ \int_0^T |X_t|^2 dt\right] < \infty.
+	\end{equation}
+
+\end{theorem}
+
+Now we are ready to state the central definition for our application, namely that of the Itô diffusion.
+
+\begin{definition}[Time-homogenous Itô diffusion]
+	A (time-homogenous) Itô diffusion is a stochastic process $X_t(\omega) = X(t,\omega):[0,\infty) \times \Omega \to \mathbb{R}^n$ satisfying a stochastic differential equation of the form
+	\begin{equation*}
+		dX_t = b(X_t)dt + \sigma(X_t)dB_t, \quad t \geq s; X_s = x
+	\end{equation*}
+where $B_t$ is m-dimensionsal Brownian motion and $b:\mathbb{R}^n \to \mathbb{R}^n$, $\sigma:\mathbb{R}^n \to \mathbb{R}^{n \times m}$ satisfy
+
+\begin{equation*}
+	|b(x) - b(y)| + |\sigma(x) - \sigma(y)| \leq D|x-y|; \quad x,y \in \mathbb{R}^n
+\end{equation*}
+
+We call $b$ the drift coefficient and $\sigma$ the diffusion coefficient.
+\end{definition}
+
+
+Note that the assumptions of theorem \ref{thm:existence} simplify in the case of diffusion. A very powerful result about Itô processes which we shall make use of is Itô's lemma. This is the stochastic equivalent of the chain rule in deterministic calculus.
+
+\begin{theorem}[Itô's lemma]
+	Let
+	\begin{equation*}
+		dX(t) = u dt + v B(t)
+	\end{equation*}
+	be an n-dimensional Itô process. Let $f(t, x)$ be a $C^2$ map from $[0,\infty) \times \mathbb{R}^n$ into $\mathbb{R}$. Then the process
+
+	\begin{equation*}
+		Y(t, \omega) = f(t, X(t))
+	\end{equation*}
+
+	is again an Itô process, given by
+
+	\begin{equation*}
+		dY = \frac{\partial f}{t}(t,X)dt = \sum_{i}\frac{\partial f}{\partial x_i}(t, X)dX_i + \frac{1}{2}\sum_{i,j}\frac{\partial^2f}{\partial x_i \partial x_j} dX_i dX_j
+	\end{equation*}
+
+	where $dB_i dB_j = \delta_{i,j}dt$, $dB_idt = dtdB_i = dtdt = 0$.
+	
+\end{theorem}
+
+For a proof of Itô's lemma, see e.g. \cite{oksendal2013}. Another useful tool for us is the generator of the Itô diffusion, which encodes a lot of useful information about the diffusion process. Our algorithm learns the generator rather than learning the process directly.
+
+\begin{definition}[Infintessimal generator]
+	Let $\{X_t\}$ be an Itô diffusion in $\mathbb{R}^n$. The infintessimal generator $\mathcal{L}$ of $X_t$ is defined by
+	\begin{equation*}
+		\mathcal{L}f(x) = \lim_{t \downarrow 0}\frac{\mathbb{E}^x[f(X_t)] - f(x)}{t}; \quad x \in \mathbb{R}^n
+	\end{equation*}
+	for the set of functions $f:\mathbb{R}^n \to \mathbb{R}$ where the limit exists uniformly.
+\end{definition}
+
+The generator exists for a wider class of processes than just Itô diffusion. However, in the case of diffusion, we can relate the generator to the drift and diffusion coefficients in the following way.
+
+\begin{theorem}
+	\label{thm:diffgen}
+The generator of the diffusion process is given by
+
+\begin{equation*}
+	\mathcal{L}_s f = b \cdot \nabla f + \frac{1}{2} \mathrm{tr}(\sigma^T \nabla^2 f)	
+\end{equation*}
+
+which in the case where $\sigma$ is a constant simplifies to 
+
+\begin{equation*}
+	\mathcal{L}_s f = b \cdot \nabla f + \frac{1}{2} \sigma^2 \Delta f	
+\end{equation*}
+\end{theorem}
+
+\begin{proof}
+	The Itô formula gives
+	\begin{equation*}
+		df(X_t) = \sum_i b_i \frac{\partial f}{\partial x_i} + \frac{1}{2}\sum_{i,j}(\sigma \sigma^{T})_{i,j} \frac{\partial f}{\partial x_i \partial x_j}dt + M_t
+	\end{equation*}
+
+	where $M_t$ is some martingale term. We rewrite this as 
+
+	\begin{equation*}
+		f(X_t) = f(x) + \int_0^t \mathcal{L}f(X_s)ds + M_t
+	\end{equation*}
+
+	and we now wish to show that $\mathcal{L}f$ is the generator. Taking expectations we have
+
+	\begin{equation*}
+		T_tf(x) = f(x) + \int_0^t \mathbb{E}_x[\mathcal{L}f(X_s)]ds + \mathbb{E}[M_t]
+	\end{equation*}
+
+	so that 
+
+	\begin{equation*}
+		T_tf(x) - f(x) = \int_0^t T_s (\mathcal{L}f)(x)ds
+	\end{equation*}
+
+	which gives us that
+
+	\begin{equation*}
+		\at{T_t\frac{d}{dt}f(x)}{t=0} = \mathcal{L}f(x)
+	\end{equation*}
+
+	and so it is clear that $\|\frac{d}{dt}T_tf - \mathcal{L}f\|$ as $t \to 0$.
+\end{proof}
+
+\subsection{Generative Models}
+%CS part comes second
+	A generative model allows us to interpolate between $p_{simple}$ and $p_{data}$. As the name suggests, we choose $p_{simple}$ to be some known distribution, so that we can easily generate new samples of $p_{data}$ by sampling $z \sim p_{simple}$ and applying the model.
+
+\begin{definition}[Generative modelling]
+	Generative modelling is the process of training a model to transform a sample from a simple distribution $p_{simple}$ to a data distribution $p_{data}$. 
+\end{definition}
+
+In general, the distribution $p_{data}$ will be unknown to us, since otherwise there would not be much to learn. Instead, we assume access to a finite number of examples of $p_{data}$, sampled independently, which serves to represent the true distribution. We call this our dataset.
+	
+\begin{definition}[Dataset]
+	A dataset is a finite number of samples $z_1,\ldots,z_N \sim p_{data}$.
+\end{definition}
+
+Our dataset might be a collection of images, such as MNIST, or a collection of videos from YouTube. Our aim is then to train a model to generate more images of hand-written integers or YouTube videos. We shall also need the following definition:
+
+\begin{definition}[Probability path]
+	A probability path is a time-dependent probability $\{p_t\}_{0 \leq t \leq 1}$.
+\end{definition}
+
+An increasingly common class of generative models used are flow models. Here, one learns a vector field $b_t^{\theta}$, which parametrizes the ODE that carries values from $p_{init}$ to $p_{data}$ \cite{lipman2024}. Having learned $b_t^{\theta}$, one can then interpolate between the distributions simply using an ODE solver. 
+
+\begin{definition}[Flow model]
+	A flow model is given by:
+	\begin{align*}
+		\frac{d}{dt}X_t &= b_t^{\theta}(X_t) \\
+		X_0 &\sim p_{init}
+	\end{align*} 
+	where $b_t^{\theta}:\mathbb{R}^d \to \mathbb{R}^d$ is a vector field parametrized by a neural network with parameters $\theta$.
+\end{definition}
+
+%Stuff here about how to train flow models i.e. flow matching
+The way flow models are trained is called flow matching, where we construct a target vector field $u_t^{target}(x)$ and minimize the loss
+
+\begin{equation*}
+	\mathcal{L}_{FM}(\theta) = \mathbb{E}[\|u_t^{\theta}(x) - u_t^{target}(x)\|^2]
+\end{equation*}
+
+through stochastic gradient descent. One can construct the target as
+
+\begin{equation*}
+	u_t^{target}(x) = \int u_t^{target}(x|z)\frac{p_t(x|z)p_{data}(z)}{p_t(x)}dz
+\end{equation*}
+
+and then it holds that
+
+\begin{equation*}
+	X_0 \sim p_{simple}, \quad \frac{d}{dt}X_t = u_t^{target}(X_t) \implies X_t \sim p_t \quad (0 \leq t \leq 1)
+\end{equation*}
+
+\cite{lipman2024} \cite{holderrieth2025}. Unfortunately this integral is intractable, but with some more work, one can then show that the conditional flow matching loss
+
+\begin{equation*}
+	\mathcal{L}_{CFM}(\theta) = \mathbb{E}[\| u_t^{\theta}(x) - u_t^{target}(x|z)\|^2]
+\end{equation*}
+
+is the same as $\mathcal{L}_FM(\theta)$, up to a constant, and so minimizing one with gradient descent is equivalent to minimizing the other \cite{lipman2024}, since their gradients coincide. 
+
+Flow models were preceded by (denoising) diffusion models, which, in addition to the vector field, also have a stochastic component. The aim of classic score matching, as well as our martingale matching, is to learn the parametrized drift $b_t^{\theta}$. The diffusion coefficient $\sigma_t$ is chosen by us. Having learned the parametrized drift, we can generated new samples of our data distribution $p_{data}$, using one of many numerical SDE solvers. 
+
+\begin{definition}[Diffusion model]
+	A diffusion model is given by:
+	\begin{align*}
+		dX_t &= b_t^{\theta}(X_t)dt + \sigma_t d W_t \\
+		X_0 &\sim p_{simple}
+	\end{align*}
+	where $b_t^{\theta}:\mathbb{R}^d \to \mathbb{R}^d$ is the parametrized drift, $\sigma_t: \mathbb{R}^d \to \mathbb{R}$ is our diffusion coefficient at time t, and $p_{simple}$ is our initial data distribution.
+\end{definition}
+
+%Stuff here about the classical way to train diffusion models, i.e. score matching
+The most common way to train diffusion models is through score matching \cite{song2021}. The presentation of score matching given here follows \cite{holderrieth2025}, \cite{lipman2024} and is different, but equivalent to, the presentation given by \cite{song2021}. They prove the following theorem
+
+\begin{theorem}
+	Define the conditional and marginal vector fields $u_t^{target}(x|z)$ and $u_t^{target}(x)$ as above. Then, for diffusion coefficient $\sigma_t \geq 0$, we may construct an SDE which follows the same probability path, i.e.
+	\begin{gather}
+		X_0 \sim p_{simple}, \quad dX_t = \left( u_t^{target}(X_t) + \frac{\sigma_t^2}{2} \nabla \log p_t(X_t) \right) dt + \sigma_t dB_t \\
+		\implies X_t \sim p_t \quad (0 \leq t \leq 1)
+	\end{gather}
+
+	In particular, $X_t \sim p_{data}$, and this holds if we replace the marginal probability path and vector field with their conditional versions.
+\end{theorem}
+
+Now $\nabla \log p_t(x)$ is called the score, and we can write it as
+
+\begin{equation*}
+	\nabla \log p_t(x) = \int \nabla log p_t (x|z) \frac{p_t(x|z)p_{data}(z)}{p_t(x)}dz.
+\end{equation*}
+
+Similarly to flow matching, we approximate the score by a neural net $s_t^{\theta}$ and we can derive the losses
+
+\begin{equation*}
+	\mathcal{L}_{SM} = \mathbb{E}[\|s_t^{\theta}(x) - \nabla \log p_t(x)\|^2]
+\end{equation*}
+
+and
+
+\begin{equation*}
+	\mathcal{L}_{CSM} = \mathbb{E}[\|s_t^{\theta}(x) - \nabla \log p_t(x|z)\|^2].
+\end{equation*}
+
+Once again, $\mathcal{L}_{SM}$ is intractable, but we are able to show that its gradient coincides with $\mathcal{L}_{CSM}$.
+
+Additionally, for Gaussian probability paths we can recover the vector field from the score or vice versa. This is why the traditional denoising diffusion models can be trained by only learning the score, since they are constructed based on Gaussian conditional probability paths \cite{song2021}.
+
+Our algorithm, martingale matching, also learns the diffusion model, but using a completely different methodology than score matching. Instead of learning the vector field or score directly, we learn the generator of the process by enforcing a known martingale.
+
+\section{Algorithm}
+\subsection{Training}
+Instead of constructing a loss using the marginal vector field, as in flow matching, or using the score, as in score matching, the idea of martingale matching is to enforce a martingale and thereby to learn the generator of the process. As we saw previously, knowledge of the generator combined with knowledge of the diffusion coefficient is enough to know the drift.
+
+\begin{theorem}
+$M_t^f$ is a martingale where
+
+\begin{equation*}
+	M_t^f = f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s) ds 
+\end{equation*}
+
+so that $\mathbb{E}[M_t^f] = 0$. Here $f \in C^2$ is an arbitrary test function. $\mathcal{L}_s$ is the generator of the diffusion process.
+\end{theorem}
+
+\begin{proof}
+	This follows from the proof of theorem \ref{thm:diffgen}.
+\end{proof}
+
+
+Now, we are able to construct a loss function and learn the generator by enforcing that $M_t^f$ be a martingale. Since we already know $f$ and $\sigma$, learning the generator means we also learn the drift term $b_t^{\theta}$, as desired.
+
+In practice, what we use is that we should have $\mathbb{E}[M_t^f] = 0$, and use deviations from this as our loss function. Thus, enforcing zero-mean allows us to learn the drift. This is how we construct our loss function.
+
+
+For each sample of $p_{simple}$ and each time step, we get residual
+
+\begin{equation*}
+	R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \int_{t_k}^{t_{k+1}}\mathcal{L}_sf(X_s^i)ds
+\end{equation*}
+
+Where $t_k$ is the time, $f$ is the test function, and $i$ is the batch. We use quadrature $\int_{t_k}^{t_{k+1}}\mathcal{L}_s f(X_s) ds \approx \Delta t_k \mathcal{L}_{t_k} f(X_{t_k})$, with $\Delta t$ small, to discretise the residuals and enable us to compute them efficiently. This gives discrete residual 
+
+\begin{equation*}
+	R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \Delta t \mathcal{L}_sf(X_{t_k}^i)
+\end{equation*}
+
+Our loss function is then simply the mean squared of these residuals. 
+By naively simulating the SDEs at each iteration of the algorithm, we would get a loss function like equation \ref{naive_loss}
+
+\begin{equation}
+	\label{naive_loss}
+	L_{ME}^{naive} = \frac{1}{TN|\mathcal{F}|} \sum_{k=1}^{T} \sum_{f \in \mathcal{F}} \sum_{i=1}^{N} (R^{f, i})^2.
+\end{equation}
+
+However, we instead use a Monte-Carlo approach, as in equation \ref{loss}, which significantly speeds up training by each summand being conditioned on a different variable from $p_{simple}$
+
+\begin{equation}
+	\label{loss}
+	L_{ME} = \frac{1}{N|\mathcal{F}|} \sum_{f \in \mathcal{F}} \sum_{i=1}^{N} (R^{f, i})^2.
+\end{equation}
+
+
+It remains to formally show that minimizing this error causes the resulting SDE to interpolate between $p_{simple}$ and $p_{data}$.
+
+\begin{theorem}
+Minimizing equation \ref{loss} learns the desired generator.
+\end{theorem}
+
+\begin{proof}
+	Let $\mathcal{L}_s$ be the desired generator of our process, and $\mathcal{L}_s^\theta$ be the parametrized version based on our parametrized drift, $b^\theta$. Then we know that
+
+	\begin{equation}
+		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] = 0
+	\end{equation}
+	
+	while we are trying to minimize
+
+	\begin{equation}
+		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]
+	\end{equation}
+
+	so the error is given by
+
+	\begin{equation}
+		\mathbb{E}[\int_0^t (\mathcal{L}_s^\theta f(X_s) - \mathcal{L}_sf(X_s)ds)].
+	\end{equation}
+
+	Then 
+	\begin{align*}
+		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\
+		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^ f(X_s)ds)^2] \\
+		&+ \mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] \\
+		&+ \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+	\end{align*}
+	
+	but the mixed term vanishes, so we end up with
+
+	\begin{align*}
+		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] &= \mathbb{E}[(f(X_t) - f(X_0) - \int_0^t\mathcal{L}_s^ f(X_s)ds)^2] \\
+																		&+ \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+	\end{align*}
+
+	where the first summand does not depend on $\theta$. Hence, minimizing $\mathbb{E}[(f(X_t) - f(X_0) - \mathcal{L}_s^\theta f(X_s)ds)^2]$, minimizes the error between the generators as well.
+\end{proof}
+
+With our loss constructed and proven to work, we can now create our martingale matching algorithm, which is similar in vein to other algorithms for generative modelling, such as flow and score matching. The algorithm is given in algorithm \ref{alg:mm}.
+
+\begin{algorithm}
+	\caption{Martingale Matching}\label{alg:mm}
+	\begin{algorithmic}
+		\Require Neural net $b_t^{\theta}$, diffusion coefficient $\sigma$, time-step $\Delta t$, dataset of samples $z \sim p_{data}$
+		\For{each mini-batch of data}
+		\State Sample datum z from dataset.
+		\State Sample $t \sim U[0,1-\Delta t]$.
+		\State Set $x_t \sim p_t(.|z)$, $x_{t+\Delta t} \sim p_{t + \Delta t}(.|z)$
+		\State Compute loss $\mathcal{L}_{ME}^\theta$
+		\State Update the model parameter $\theta$ via gradient descent on $\mathcal{L}_{ME}^{\theta}$
+		\EndFor	
+	\end{algorithmic}
+\end{algorithm}
+
+
+One of the main hyperparameters thus becomes our test function, and the choice of test functions is the major design decision in any implementation of this algorithm. We want to choose a subset of functions that are representative, but computationally not very expensive. Because this choice is rather arbitrary, many modern generative methods try to avoid it altogether \cite{holderrieth2025}. Perhaps the simplest such set is that of polynomials up to a certain degree. 
+
+\begin{definition}[Polynomial test functions]
+	Suppose our dataset has dimension $n$, and we want to consider polynomials of degree $d$. The the set of polynomial test functions is
+	\begin{equation*}
+	\{f(x) = x^k_ix^k_j | i,j \in \{0,\ldots,n\}, k \in \{0,\ldots, d\}\}.
+\end{equation*}
+\end{definition}
+
+Another is set of test functions is Hermite polynomials.
+
+\begin{definition}[Hermite polynomial test functions]
+	\begin{equation*}
+		He_n(x) = (-1)^n e^{\frac{x^2}{2}}\frac{d^n}{dx^n}e^{-\frac{x^2}{2}}
+	\end{equation*}
+\end{definition}
+
+The polynomial test functions are quite computationally heavy. If we have quadratic test functions and include all mixed terms, then this means we get $d + d^2$ test functions, where $d$ is the dimension of our data. Hence, we also introduce the random Fourier features.
+
+\begin{definition}[Random Fourier features]
+	A random Fourier feature is a function of the type 
+	\begin{equation*}
+		f_{\omega_1}(x) = cos(w^\intercal x) \quad f_{\omega_2}(x) = sin(w^\intercal x)
+	\end{equation*}
+	where $x \in \mathbb{R}^d$ and $\omega \sim N(0, \sigma^2 I_d)$.
+\end{definition}
+
+A key step in the algorithm \ref{alg:mm} is that of sampling $p_t(.|z)$ to generate our values $x$. In order to do this we need to develop our concept of conditional probability paths. The most common probability path used in generative flow models is a Gaussian probability path.
+
+\begin{definition}[Gaussian probability path]
+	Let $\alpha_t = \alpha(t) \in C^1([0,1])$ and $\beta_t = \beta(t) \in C^1([0,1])$ be noise schedulers, that is, monotonic functions with $\alpha_0 = \beta_1 = 0$ and $\alpha_1 = \beta_0 = 1$. We then define the Gaussian conditional probability path to be
+
+	\begin{equation*}
+		p_t(\cdot|z) = N(\alpha_tz, \beta_t^2 I_d).
+	\end{equation*}
+
+	Then this probability path fulfills the boundary conditions
+	\begin{equation*}
+		p_0(\cdot|z) = N(\alpha_0z, \beta_0^2 I_d) = N(0, I_d)\quad and \quad p_1(\cdot|z) = N(\alpha_1 z| \beta_1^2 I_d) = N(z,0) 
+	\end{equation*}
+\end{definition}
+
+Since score matching only works with Gaussian probability paths, these are widely used in practice. However, Gaussian probability paths have the inherent restrictions that they force $p_{simple}$ to also be Gaussian. Hence, if one wants to interpolate between arbitrary distributions, one must use some other probability path.
+
+However, we found that, in practice, one is not very interested in the distribution of $p_{simple}$, as long as one is able to interpolate between it and $p_{data}$. Hence it Gaussian probability paths suffice in most cases, including ours.
+
+\subsection{Generation}
+Having learned our drift $b_t^{\theta}$, we want to use it to generate new samples in $p_{data}$ from our synthetic distribution $p_{simple}$. We can do this by simply solving the stochastic differential equation, and thus simulating its path. In our implementation we use the the Euler-Maruyama solver, since it is very simple. Algorithm \ref{alg:euler} gives the pseudocode.
+
+\begin{algorithm}
+	\caption{Euler-Maruyama}\label{alg:euler}
+	\begin{algorithmic}
+		\Require Neural net $b_t^{\theta}$, number of steps n, diffusion coefficient $\sigma_t$
+		\State Set $h = \frac{1}{n}$
+		\State Set $t=0$
+		\State Sample $X_0 \sim p_{simple}$
+		\For{$i = 1, \ldots, n$}
+		\State Sample $\epsilon \sim N(0, I)$
+			\State $X_{t+h} = X_t + h b_t^{\theta} (X_t) + \sigma_t \sqrt{h} \epsilon$
+			\State Update $t \leftarrow t + h$
+		\EndFor
+		\State \Return $X_1$
+	\end{algorithmic}
+\end{algorithm}
+
+The Euler-Maruyama method is essentially just the Euler method for deterministic differential equations, but with some simulated noise. What it does is to just take a time step in the direction predicted by our neural net $b_t^{\theta}$, while adding some noise to keep it stochastic. This is the main part of the algorithm, namely updating the time step:
+
+\begin{equation*}
+	X_{t+h} = X_t + h b_t^{\theta} (X_t) + \sigma_t \sqrt{h} \epsilon
+\end{equation*}
+
+For more about the Euler-Maruyama method and other methods for solving SDEs, we refer the interested reader to \cite{kloeden1999}. 
+We can now generate new samples of our $p_{data}$ distribution, simply by sampling an element of $p_{simple}$, and simulating the SDE using Euler-Maruyama to get from $X_0 \sim p_{init}$ to $X_1 \sim p_{data}$.
+\section{Result}
+
+We implemented Alg. \ref{alg:mm}
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{gauss.png}
+  \caption{Learning multiple Gaussians}
+  \label{fig:gaussF}
+\end{figure}
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{moons_fourier.png}
+  \caption{Learning two moons with Fourier test functions}
+  \label{fig:moonF}
+\end{figure}
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{moons_poly.png}
+  \caption{Learning two moons with polynomial test functions}
+  \label{fig:moonP}
+\end{figure}
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{checkerboard_fourier.png}
+  \caption{Learning a checkerboard with Fourier test functions}
+  \label{fig:checkF}
+\end{figure}
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{checkerboard_poly.png}
+  \caption{Learning a checkerboard with polynomial test functions}
+  \label{fig:checkP}
+\end{figure}
+
+\section{Conclusion}
+
+\printbibliography
+
+\end{document}
+
+
