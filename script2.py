@@ -21,14 +21,15 @@ PARAMS = {
 # p_data = GaussianMixture.symmetric_2D(
 #     nmodes=5, std=PARAMS["target_std"], scale=PARAMS["target_scale"]
 # ).to(device)
-p_data = CheckerboardSampleable(device, grid_size=4)
+# p_data = CheckerboardSampleable(device, grid_size=4)
+p_data = CirclesSampleable(device)
 
 num_epochs = 5000
 batch_size = 10000
 steps = 1000
 dim = 2
 tfunc = Polynomial()
-sigma = 0
+sigma = 0.5
 dt = 1 / (steps - 1)
 
 # Construct conditional probability path

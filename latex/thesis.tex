@@ -124,18 +124,27 @@ Anton \textsc{von Nandelstadh}\\% Your name
 
 \end{titlepage}
 
-\section{Introduction}
+\tableofcontents
 
-Our discussions regarding the framework of flow/score matching mostly follow the conventions used by \cite{lipman2024}, \cite{holderrieth2026}. Specifically, we consider the SDE we want to learn as moving forward in time, unlike the theory of time-reversal used in the older theory of score matching, as considered in \cite{song2021}.
+\newpage
+
+\section{Introduction}
+This thesis aims to develop a novel method for learning the stochastic differential equation of a diffusion-based generative model, which we call martingale matching. We present this as an alternative to the predominant frameworks of score matching \cite{song2021} and flow matching \cite{lipman2023}.
+
+The first diffusion models were discrete-time Gaussian processes \cite{sohldickstein2015} \cite{ho2020}. These were later reformulated as stochastic differential equations (SDEs) \cite{song2021}. In a diffusion model, the probability path interpolating between a simple distribution and the data distribution is created through a forward noising process modeled by an SDE. Inspired by the reversal of the forward noising process \cite{anderson1982}, these SDEs are chosen such that they have marginal probabilities which can parametrize the generator of the diffusion process using the score function, hence the name score matcing \cite{song2020} \cite{lipman2024}. Our discussions regarding the framework of flow/score matching mostly follow the conventions used by \cite{lipman2024}, \cite{holderrieth2026}. Specifically, we consider the SDE we want to learn as moving forward in time, unlike the theory of time-reversal used in the older score matching literature, such as \cite{song2021}.
+
+Our novel approach is to learn the generator of the diffusion process directly, instead of using the score to do this implicitly. We do this by enforcing a known martingale from the basic theory of SDEs. We then use deviations from the martingale to construct a new loss function, based on which we train and learn the drift and diffusion functions. We present our results applying this new methodology to varioius toy datasets, and discuss the possibility of using it to train on high-dimensional data. In order to do this, we first develop some of the theory of stochastic differential equations, and the general theory of diffusion-based generative models.
 
 \section{Background}
 \subsection{SDE Preliminaries}
 %Math part goes first
-In order to understand denoising diffusion models, we first need to go through some preliminaries regarding stochastic processes and stochastic differential equations. In what follows, we assume basic knowledge of measure theory.
+In order to understand denoising diffusion models, we first need to go through some preliminaries regarding stochastic processes and stochastic differential equations. In what follows, we assume basic knowledge of measure theory and measure-theoretic probability theory. We begin by expanding our regular probability space, defined by a triple, into a filtered probability space, defined by a quadruple.
 
 \begin{definition}[Filtration]
 	Let $(\Omega, \mathcal{F}, P)$ be a probability space and let $T$ be an index set. For each $i \in T$, let $\mathcal{F}_i$ be a sub-$\sigma$-algebra of $\mathcal{F}$. Then $\{\mathcal{F}_i\}_{i \in T}$ is a filtration if $\mathcal{F}_k \subset \mathcal{F}_l$ for each $k \leq l$. Then $(\Omega, \mathcal{F}, \{\mathcal{F}_t\}, P)$ is called a filtered probability space.
 \end{definition}
+
+We are now ready for one of the central definitions of modern probability theory, that of a martingale.
 
 \begin{definition}[Martingale]
 	A stochastic process $X:T \times \Omega \to \mathbb{R}$ on probability space $(\Omega, \mathcal{F}, P)$ is a martingale w.r.t. the filtration $\{\mathcal{F}\}$ (of $(\Omega, \mathcal{F}, P)$) if
@@ -299,7 +308,7 @@ The limit exists in $L^2$ since the set of integrals $\int_S^T \phi_n(t, \omega)
 	\end{equation}
 \end{definition}
 
-Now we are ready to define stochastic differential equations. Since the most important (and the only we will use) integrator for stochastic integrals is Brownian motion, which is nowhere differentiable, we choose to define stochastic differential equations in terms of integrals rather than derivatives.
+Now we are ready to define stochastic differential equations. Since the most important integarator (and the only one which we will use) for stochastic integrals is Brownian motion, which is nowhere differentiable, we choose to define stochastic differential equations in terms of integrals rather than derivatives.
 
 \begin{definition}[Stochastic differential equation]
 	A process $X_t$ satisfies the stochastic differential equation
@@ -313,7 +322,7 @@ Now we are ready to define stochastic differential equations. Since the most imp
 	\end{equation}
 \end{definition}
 
-In order for an SDE to possess solutions, we must impose conditions on $\sigma$ and $b$. The proof of the following theorem is similar to the ODE case, where the proof of existence uses Picard iteration, and the proof of uniquencess uses the Itô isometry and the Lipschitz condition. The interested reader is refered to \cite{oksendal2013} or \cite{karatzas1998}.
+In order for an SDE to possess solutions, we must impose conditions on $\sigma$ and $b$. The proof of the following theorem is similar to the ODE case, where the proof of existence uses Picard iteration, and the proof of uniquencess uses the Itô isometry and the Lipschitz condition. The interested reader is referred to \cite{oksendal2013} or \cite{karatzas1998}.
 
 \begin{theorem}[Existence and uniquencess of SDEs]
 	\label{thm:existence}
@@ -405,6 +414,8 @@ which in the case where $\sigma$ is a constant simplifies to
 \begin{equation*}
 	\mathcal{L}_s f = b \cdot \nabla f + \frac{1}{2} \sigma^2 \Delta f	
 \end{equation*}
+
+Here $f$ is any $C^2$ function.
 \end{theorem}
 
 \begin{proof}
@@ -553,9 +564,10 @@ Instead of constructing a loss using the marginal vector field, as in flow match
 \begin{theorem}
 $M_t^f$ is a martingale where
 
-\begin{equation*}
+\begin{equation}
+	\label{eq:mart}
 	M_t^f = f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s) ds 
-\end{equation*}
+\end{equation}
 
 so that $\mathbb{E}[M_t^f] = 0$. Here $f \in C^2$ is an arbitrary test function. $\mathcal{L}_s$ is the generator of the diffusion process.
 \end{theorem}
@@ -633,15 +645,15 @@ Minimizing equation \ref{loss} learns the desired generator.
 	
 	but the mixed term vanishes, so we end up with
 
-	\begin{align*}
-		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] &= \mathbb{E}[(f(X_t) - f(X_0) - \int_0^t\mathcal{L}_s^ f(X_s)ds)^2] \\
-																		&+ \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
-	\end{align*}
+	\begin{gather*}
+		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\ 
+		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t\mathcal{L}_s^ f(X_s)ds)^2] + \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+	\end{gather*}
 
 	where the first summand does not depend on $\theta$. Hence, minimizing $\mathbb{E}[(f(X_t) - f(X_0) - \mathcal{L}_s^\theta f(X_s)ds)^2]$, minimizes the error between the generators as well.
 \end{proof}
 
-With our loss constructed and proven to work, we can now create our martingale matching algorithm, which is similar in vein to other algorithms for generative modelling, such as flow and score matching. The algorithm is given in algorithm \ref{alg:mm}.
+With our loss constructed and proven to work, we can now create our martingale matching algorithm, which is similar in vein to other algorithms for generative modelling, such as flow and score matching. The algorithm is given in Alg. \ref{alg:mm}.
 
 \begin{algorithm}
 	\caption{Martingale Matching}\label{alg:mm}
@@ -658,7 +670,18 @@ With our loss constructed and proven to work, we can now create our martingale m
 \end{algorithm}
 
 
-One of the main hyperparameters thus becomes our test function, and the choice of test functions is the major design decision in any implementation of this algorithm. We want to choose a subset of functions that are representative, but computationally not very expensive. Because this choice is rather arbitrary, many modern generative methods try to avoid it altogether \cite{holderrieth2025}. Perhaps the simplest such set is that of polynomials up to a certain degree. 
+One of the main hyperparameters thus becomes our test function, and the choice of test functions is the major design decision in any implementation of this algorithm. We want to choose a subset of functions that are representative, but computationally not very expensive. Because this choice is rather arbitrary, many modern generative methods try to avoid it altogether \cite{holderrieth2025}. 
+One set of test functions is that of random Fourier features. These have the advantage of being computationally, particularly for higher dimensional data, as the number of functions required does not necessarily depend on the dimension of the data.
+
+\begin{definition}[Random Fourier features]
+	A random Fourier feature is a function of the type 
+	\begin{equation*}
+		f_{\omega_1}(x) = cos(w^\intercal x) \quad f_{\omega_2}(x) = sin(w^\intercal x)
+	\end{equation*}
+	where $x \in \mathbb{R}^d$ and $\omega \sim N(0, \sigma^2 I_d)$.
+\end{definition}
+
+Another intuitive test function to try is that of polynomials. We found that empirically that these work better than the Fourier features (see below), but they have the disadvantage that they are computationally heavier, since the number of test functions of degree $p$ is $d + d^2 + \ldots + d^p$, where $d$ is the dimension of our data. This means that we are restricted to both low-degree polynomials and low-dimenson data.
 
 \begin{definition}[Polynomial test functions]
 	Suppose our dataset has dimension $n$, and we want to consider polynomials of degree $d$. The the set of polynomial test functions is
@@ -667,22 +690,12 @@ One of the main hyperparameters thus becomes our test function, and the choice o
 \end{equation*}
 \end{definition}
 
-Another is set of test functions is Hermite polynomials.
+Another is set of test functions is Hermite polynomials. We did not find much empirical improvement of regular polynomial test functions (see below).
 
 \begin{definition}[Hermite polynomial test functions]
 	\begin{equation*}
 		He_n(x) = (-1)^n e^{\frac{x^2}{2}}\frac{d^n}{dx^n}e^{-\frac{x^2}{2}}
 	\end{equation*}
-\end{definition}
-
-The polynomial test functions are quite computationally heavy. If we have quadratic test functions and include all mixed terms, then this means we get $d + d^2$ test functions, where $d$ is the dimension of our data. Hence, we also introduce the random Fourier features.
-
-\begin{definition}[Random Fourier features]
-	A random Fourier feature is a function of the type 
-	\begin{equation*}
-		f_{\omega_1}(x) = cos(w^\intercal x) \quad f_{\omega_2}(x) = sin(w^\intercal x)
-	\end{equation*}
-	where $x \in \mathbb{R}^d$ and $\omega \sim N(0, \sigma^2 I_d)$.
 \end{definition}
 
 A key step in the algorithm \ref{alg:mm} is that of sampling $p_t(.|z)$ to generate our values $x$. In order to do this we need to develop our concept of conditional probability paths. The most common probability path used in generative flow models is a Gaussian probability path.
@@ -707,7 +720,7 @@ However, we found that, in practice, one is not very interested in the distribut
 \subsection{Generation}
 Having learned our drift $b_t^{\theta}$, we want to use it to generate new samples in $p_{data}$ from our synthetic distribution $p_{simple}$. We can do this by simply solving the stochastic differential equation, and thus simulating its path. In our implementation we use the the Euler-Maruyama solver, since it is very simple. Algorithm \ref{alg:euler} gives the pseudocode.
 
-\begin{algorithm}
+\begin{algorithm}[H]
 	\caption{Euler-Maruyama}\label{alg:euler}
 	\begin{algorithmic}
 		\Require Neural net $b_t^{\theta}$, number of steps n, diffusion coefficient $\sigma_t$
@@ -729,44 +742,83 @@ The Euler-Maruyama method is essentially just the Euler method for deterministic
 	X_{t+h} = X_t + h b_t^{\theta} (X_t) + \sigma_t \sqrt{h} \epsilon
 \end{equation*}
 
-For more about the Euler-Maruyama method and other methods for solving SDEs, we refer the interested reader to \cite{kloeden1999}. 
+The Euler-Maruyama method converges in the following sense.
+
+\begin{definition}
+	The time discrete approximation $Y^\delta$, with maximum step size $\delta$, converges strongly to the Itô process X with order $\gamma > 0$ at time $T$ if there exists constant $C>0$ and $\delta_0 > 0$ such that
+	\begin{equation*}
+		\epsilon(\delta) = \mathbb{E}\left[\left|X_t - Y^\delta (T)\right|\right] \leq C\delta^\gamma
+	\end{equation*}
+\end{definition}
+
+One can show that the Euler-Maruyama method converges strongly with order 0.5. \cite{kloeden1999} For more about the Euler-Maruyama method and other methods for solving SDEs, we refer the interested reader to \cite{kloeden1999}. 
 We can now generate new samples of our $p_{data}$ distribution, simply by sampling an element of $p_{simple}$, and simulating the SDE using Euler-Maruyama to get from $X_0 \sim p_{init}$ to $X_1 \sim p_{data}$.
-\section{Result}
 
-We implemented Alg. \ref{alg:mm}
+\section{Results}
+We implemented Alg. \ref{alg:mm} using a few of the test functions we suggested. Since we did not see a significant difference between the regular and Hermite polynomial test functions, we present the results for regular polynomial test functions here. For our implementation, we parametrized the drift using an MLP neural network of size $4 \times 64$. We used $\sigma = 0.5$, as well as $1000$ steps and a batch size of $10000$ with $5000$ epochs of training. The hyperparameters were chosen simply by trial and error, while keeping computation fairly fast (at most a few minutes) on a modern CPU.
 
-\begin{figure}
+We began by learning a multiple Gaussian distribution. This is perhpas the most natural distribution for us to learn, since we are using Gaussian probability paths and we have the Gaussian noise component of the stochastic differential equation as well. For this distribution, we got very good results with all of our test functions, hence we only present the result of Fourier test functions. An example of the flow of samples and trajectories of the learned model, compared with the ground-truth probability paths, is given in Fig. \ref{fig:gaussF}.
+
+\begin{figure}[H]
   \includegraphics[width=\linewidth]{gauss.png}
   \caption{Learning multiple Gaussians}
   \label{fig:gaussF}
 \end{figure}
 
-\begin{figure}
+To distinguish between the quality of different test functions, we had to train on more difficult data distributions. However, we stuck to $2d$ distributions, since they are easy to visualize, and some problems encountered with higher dimensional data, which are discussed below. Fig. \ref{fig:moonF} shows the flow of data learned using Forier test functions, compared to the ground-truth probability paths. Fig. \ref{fig:checkF} shows the results for learning a checkerboard data distribution and Fig. \ref{fig:circlesF} the results for a circles distribution.
+
+\begin{figure}[H]
   \includegraphics[width=\linewidth]{moons_fourier.png}
   \caption{Learning two moons with Fourier test functions}
   \label{fig:moonF}
 \end{figure}
 
-\begin{figure}
-  \includegraphics[width=\linewidth]{moons_poly.png}
-  \caption{Learning two moons with polynomial test functions}
-  \label{fig:moonP}
-\end{figure}
-
-\begin{figure}
+\begin{figure}[H]
   \includegraphics[width=\linewidth]{checkerboard_fourier.png}
   \caption{Learning a checkerboard with Fourier test functions}
   \label{fig:checkF}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[H]
+  \includegraphics[width=\linewidth]{circles_fourier.png}
+  \caption{Learning circles with Fourier test functions}
+  \label{fig:circlesF}
+\end{figure}
+
+As seen in Fig. \ref{fig:moonF} and Fig. \ref{fig:checkF}, the Fourier functions seem to struggle with even slightly more complicated data than variations on the Gaussian distribution. As soon as they have to learn drift which is clearly non-linear, they struggle. The Fourier test functions seem to especially struggle on the checkerboard, but here any stochastic process will slightly struggle, due to the inherent diffusion which tends to make the corners slightly fuzzy. However, the Fourier test functions seem to completely break down in Fig. \ref{fig:circlesF}, which shows that the problem does not lie with "sharp corners".
+
+Hence, we then implemented polynomial test functions up to the second degree on the same data sets. Fig. \ref{fig:moonP} shows two moons and Fig. \ref{fig:checkP} shows the checkerboard, both learned using polynomial test functions. We find that the polynomial test functions do much better than the Fourier features. They are likely able to better learn higher-order terms of the drift. The polynomial test functions learn the two moons dataset almost perfectly, and the checkerboard with much less fuzziness than the Fourier test functions. Moreover, Fig. \ref{fig:circlesP} shows that the polynomial test functions learn the circles dataset almost perfectly.
+
+
+\begin{figure}[H]
+  \includegraphics[width=\linewidth]{moons_poly.png}
+  \caption{Learning two moons with polynomial test functions}
+  \label{fig:moonP}
+\end{figure}
+
+
+\begin{figure}[H]
   \includegraphics[width=\linewidth]{checkerboard_poly.png}
   \caption{Learning a checkerboard with polynomial test functions}
   \label{fig:checkP}
 \end{figure}
 
-\section{Conclusion}
+\begin{figure}[H]
+  \includegraphics[width=\linewidth]{circles_poly.png}
+  \caption{Learning circles with polynomial test functions}
+  \label{fig:circlesP}
+\end{figure}
 
+We also attempted to learn higher dimensions data, such as the MNIST dataset of handwritten digits with $28 \times 28$ pixels, which has dimension $28 \times 28 = 784$. However, we encountered the problem that our Fourier test functions were not good enough, whereas the number of our second-degree polynomial test functions grow quadratically. This means that in the MNIST case, we have $784 + 784^2 = 615 440$ test functions. This significantly slows down our computation, and more importantly, requires too much memory to run on a regular computer, and so the program simply crashes.
+
+\section{Conclusion}
+The results we got applying martingale matching to toy data we very encouraging. Clearly we are able to learn something useful about our data simply by enforcing the martingale given in Eq. $\ref{eq:mart}$. The main architectural difficulty we encountered was finding test functions which give us good results while being computationally cheap.
+
+Hence, there are a multitude of ways to extend this work, since the primary design choice for martingale matching is how we choose test functions. One option would be to look at different test functions than Fourier features or polynomials. Our choice of test functions was somewhat arbitrary, and there are surely ones that would perform significantly better. Another would be to try to mitigate for weaknesses of different test functions by combining them in various ways, to better represent the whole space of test functions. 
+
+Perhaps the most promising extension would be to learn the test functions. If one would parametrize them by their own neural nets, then one could simply train them while training the drift. This would remove some of the design choices that have to be made while implementing the martingale matching algorithm. More importantly, it would likely decrease the number of test functions needed and significantly improve the scalability to higher dimensions. This is because a dataset like MNIST, although it has $784$ pixels, in reality has many fewer true dimensions. Hence, many of the relationships captured by mixed-term polynomials likely do not contribue meaningfully to the learning process, and hence could be discarded. We hypothesize that the machine could do quite a good job at choosing the meaningful dimensions through learning.
+
+\nocite{*}
 \printbibliography
 
 \end{document}
