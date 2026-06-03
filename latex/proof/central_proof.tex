@@ -1,0 +1,106 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Uppsala University Assignment Title Page 
+% LaTeX Template
+% Version 1.0 (27/12/12)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% Original author:
+% WikiBooks (http://en.wikibooks.org/wiki/LaTeX/Title_Creation)
+% Modified by Elsa Slattegard to fit Uppsala university
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+
+%\title{Title page with logo}
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[12pt]{article}
+\usepackage{longtable}
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{multirow} % needed for tables
+\usepackage{listings} % needed for code inclusion
+\setlength {\marginparwidth}{2cm}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float}
+\usepackage{biblatex}
+\usepackage{amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amssymb}
+\usepackage{csquotes}
+\usepackage{amsmath}
+
+\graphicspath{{../pdf/}{./MMPics/}}
+
+
+ % this chunk defines the colors for code inclusion
+\lstset{
+    language=python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{purple},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    breaklines=true,
+    frame=single,
+    tabsize=4
+}
+
+\addbibresource{references.bib}
+
+\newtheoremstyle{break}
+  {\topsep}{\topsep}%
+  {\itshape}{}%
+  {\bfseries}{}%
+  {\newline}{}%
+\theoremstyle{break}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}{Theorem}[section]
+
+\newcommand\at[2]{\left.#1\right|_{#2}}
+
+\begin{document}
+Our residual is given by
+
+\begin{equation}
+	R_f = f(Y_{t + \Delta t}) - f(X_t) - \int_t^{t+\Delta t}\mathcal{L_\theta}f(X_s)ds
+\end{equation}
+
+so we find that
+
+\begin{equation}
+	\mathbb{E}[R_f] = \mathbb{E}_{p_t + \Delta t}[f] - \mathbb{E}_{p_t}[f] - \Delta t \mathbb{E}_{p_t}[\mathcal{L}_\theta f]
+\end{equation}
+
+and so if $\mathbb{E}[R_f]$ is minimized, then 
+
+\begin{equation}
+	\frac{\mathbb{E}_{p_t + \Delta t}[f] - \mathbb{E}_{p_t}[f]}{\Delta t} = \mathbb{E}_{p_t}[\mathcal{L}_\theta f]
+\end{equation}
+
+But the Fokker-Planck equation now gives us that
+
+\begin{equation}
+	\frac{d}{dt}\mathbb{E}[f(X_t)] = \mathbb{E}[\mathcal{L}f(X_t)]
+\end{equation}
+
+so minimizing the residual enforces
+
+\begin{equation}
+	\mathbb{E}[\mathcal{L}_\theta f] = \mathbb{E}_{p_t}[\mathcal{L}f]
+\end{equation}
+\end{document}

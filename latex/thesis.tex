@@ -25,7 +25,6 @@
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{multirow} % needed for tables
-\usepackage{listings} % needed for code inclusion
 \setlength {\marginparwidth}{2cm}
 \usepackage[colorinlistoftodos]{todonotes}
 \usepackage{xcolor}
@@ -40,25 +39,8 @@
 \usepackage{algpseudocode}
 \usepackage{amssymb}
 \usepackage{csquotes}
-\usepackage{amsmath}
 
 \graphicspath{{../pdf/}{./MMPics/}}
-
-
- % this chunk defines the colors for code inclusion
-\lstset{
-    language=python,
-    basicstyle=\ttfamily\small,
-    keywordstyle=\color{blue},
-    stringstyle=\color{red},
-    commentstyle=\color{purple},
-    numbers=left,
-    numberstyle=\tiny\color{gray},
-    stepnumber=1,
-    breaklines=true,
-    frame=single,
-    tabsize=4
-}
 
 \addbibresource{references.bib}
 
@@ -157,6 +139,16 @@ We are now ready for one of the central definitions of modern probability theory
 			for all $s$ and $t$ with $s < t$, $\mathbb{E}[X_t|\mathcal{F}_s] = X_s.$
 	\end{enumerate}
 \end{definition}
+
+A very important example of a martingale is that of Brownian motion.
+	\begin{definition}[Brownian motion]
+		Brownian motion is a stochastic process $\{B_t\}$ such that
+		\begin{itemize}
+			\item $B_0 = 0$
+			\item for all $k$, and all $0 < t_1 < \ldots < t_k$, the random variables \[B_{t_k} - B_{t_{k-1}} \sim N(0, t_k - t_{k-1})\] are independent
+			\item $B_t$ is almost surely continuous in $t$
+		\end{itemize}
+	\end{definition}
 
 We intend to construct the Itô integral, which will be essential in our defintion of stochastic differential equations. The exposition of the construction follows \cite{oksendal2013}. We begin by defining the class $\nu$ of functions for which the Itô integral will exist. 
 
@@ -391,8 +383,8 @@ Note that the assumptions of theorem \ref{thm:existence} simplify in the case of
 
 For a proof of Itô's lemma, see e.g. \cite{oksendal2013}. Another useful tool for us is the generator of the Itô diffusion, which encodes a lot of useful information about the diffusion process. Our algorithm learns the generator rather than learning the process directly.
 
-\begin{definition}[Infintessimal generator]
-	Let $\{X_t\}$ be an Itô diffusion in $\mathbb{R}^n$. The infintessimal generator $\mathcal{L}$ of $X_t$ is defined by
+\begin{definition}[Generator]
+	Let $\{X_t\}$ be an Itô diffusion in $\mathbb{R}^n$. The generator $\mathcal{L}$ of $X_t$ is defined by
 	\begin{equation*}
 		\mathcal{L}f(x) = \lim_{t \downarrow 0}\frac{\mathbb{E}^x[f(X_t)] - f(x)}{t}; \quad x \in \mathbb{R}^n
 	\end{equation*}
@@ -406,7 +398,7 @@ The generator exists for a wider class of processes than just Itô diffusion. Ho
 The generator of the diffusion process is given by
 
 \begin{equation*}
-	\mathcal{L}_s f = b \cdot \nabla f + \frac{1}{2} \mathrm{tr}(\sigma^T \nabla^2 f)	
+	\mathcal{L}_s f = b \cdot \nabla f + \frac{1}{2} \mathrm{tr}(\sigma\sigma^T \nabla^2 f)	
 \end{equation*}
 
 which in the case where $\sigma$ is a constant simplifies to 
@@ -570,6 +562,7 @@ $M_t^f$ is a martingale where
 \end{equation}
 
 so that $\mathbb{E}[M_t^f] = 0$. Here $f \in C^2$ is an arbitrary test function. $\mathcal{L}_s$ is the generator of the diffusion process.
+\label{thm:mart}
 \end{theorem}
 
 \begin{proof}
@@ -585,86 +578,142 @@ In practice, what we use is that we should have $\mathbb{E}[M_t^f] = 0$, and use
 For each sample of $p_{simple}$ and each time step, we get residual
 
 \begin{equation*}
-	R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \int_{t_k}^{t_{k+1}}\mathcal{L}_sf(X_s^i)ds
+	\tilde R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \int_{t_k}^{t_{k+1}}\mathcal{L}_sf(X_s^i)ds
 \end{equation*}
 
 Where $t_k$ is the time, $f$ is the test function, and $i$ is the batch. We use quadrature $\int_{t_k}^{t_{k+1}}\mathcal{L}_s f(X_s) ds \approx \Delta t_k \mathcal{L}_{t_k} f(X_{t_k})$, with $\Delta t$ small, to discretise the residuals and enable us to compute them efficiently. This gives discrete residual 
 
 \begin{equation*}
-	R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \Delta t \mathcal{L}_sf(X_{t_k}^i)
+	\tilde R_{t_k}^{f,i} = f(X_{t_{k+1}}^i) - f(X_{t_k}^i) - \Delta t \mathcal{L}_sf(X_{t_k}^i)
 \end{equation*}
 
-Our loss function is then simply the mean squared of these residuals. 
-By naively simulating the SDEs at each iteration of the algorithm, we would get a loss function like equation \ref{naive_loss}
+Our loss function is then simply the mean squared of these residuals. Now the loss function Eq. \ref{naive_loss} arises naturally, since $\frac{1}{N}\sum_{i=1}^N \tilde R \approx \mathbb{E}[\tilde R]$ for big $N$, which we know should be $0$.
 
 \begin{equation}
 	\label{naive_loss}
-	L_{ME}^{naive} = \frac{1}{TN|\mathcal{F}|} \sum_{k=1}^{T} \sum_{f \in \mathcal{F}} \sum_{i=1}^{N} (R^{f, i})^2.
+	L_1 = \frac{1}{T|\mathcal{F}|} \sum_{k=1}^{T} \sum_{f \in \mathcal{F}} \left(\frac{1}{N}\sum_{i=1}^{N} \tilde R^{f, i}\right)^2.
 \end{equation}
 
-However, we instead use a Monte-Carlo approach, as in equation \ref{loss}, which significantly speeds up training by each summand being conditioned on a different variable from $p_{simple}$
+
+Although Eq. \ref{naive_loss} is the mathematically cleanest version of our test function, we made improvements not so much motivated by the theory but by their numerical superiority and displayed empirical improvements. 
+
+First, we used a Monte-Carlo approach, as in equation \ref{bad_loss}, which significantly speeds up training by each summand being conditioned on a different variable from $p_{simple}$
 
 \begin{equation}
-	\label{loss}
-	L_{ME} = \frac{1}{N|\mathcal{F}|} \sum_{f \in \mathcal{F}} \sum_{i=1}^{N} (R^{f, i})^2.
+	\label{bad_loss}
+	L_2 = \frac{1}{|\mathcal{F}|} \sum_{f \in \mathcal{F}} \left(\frac{1}{N}\sum_{i=1}^{N} \tilde R^{f, i}\right)^2.
 \end{equation}
 
+Second, we changed our loss function so that instead of being genuinely pathwise, it becomes pathwise in a weak sense. Explicitly, we used the residual
 
-It remains to formally show that minimizing this error causes the resulting SDE to interpolate between $p_{simple}$ and $p_{data}$.
+\begin{equation}
+	R_{t_k}^{f,i} = f(Y_{t_{k+1}}^i) - f(X_{t_k}^i) - \int_{t_k}^{t_{k+1}}\mathcal{L}_sf(X_s^i)ds
+\end{equation}
+
+where $Y_{t_{k+1}} \sim p_{t_{k+1}}(\cdot|z)$ and $X_{t_k} \sim p_{t_k}(\cdot|z)$. This gives the loss function
+
+\begin{equation}
+	\label{better_loss}
+	L_3 = \frac{1}{|\mathcal{F}|} \sum_{f \in \mathcal{F}} \left(\frac{1}{N}\sum_{i=1}^{N} R^{f, i}\right)^2.
+\end{equation}
+
+% It remains to formally show that minimizing this error causes the resulting SDE to interpolate between $p_{simple}$ and $p_{data}$.
 
 \begin{theorem}
-Minimizing equation \ref{loss} learns the desired generator.
+	Minimizing equation \ref{better_loss} implies weak generator learning. Explicitly, if for each $f \in \mathcal{F}$ we have that $\mathbb{E}[R^f_t] = 0$, then \[\mathbb{E}[\mathcal{L} f(X_t)] = \mathbb{E}[\mathcal{L}^\theta f(X_t)]\] for each $f \in \mathcal{F}$.
 \end{theorem}
 
 \begin{proof}
-	Let $\mathcal{L}_s$ be the desired generator of our process, and $\mathcal{L}_s^\theta$ be the parametrized version based on our parametrized drift, $b^\theta$. Then we know that
-
-	\begin{equation}
-		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] = 0
-	\end{equation}
-	
-	while we are trying to minimize
-
-	\begin{equation}
-		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]
-	\end{equation}
-
-	so the error is given by
-
-	\begin{equation}
-		\mathbb{E}[\int_0^t (\mathcal{L}_s^\theta f(X_s) - \mathcal{L}_sf(X_s)ds)].
-	\end{equation}
-
-	Then 
+	Using Thm. \ref{thm:mart}, we find that
 	\begin{align*}
-		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\
-		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^ f(X_s)ds)^2] \\
-		&+ \mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] \\
-		&+ \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+		\mathbb{E}[R_t] &= \mathbb{E}[f(Y_{t+\Delta t})] - \mathbb{E}[f(X_t)] - \int_t^{t+\Delta t} \mathbb{E}[\mathcal{L}^\theta f(X_s)]ds \\
+							 &= \mathbb{E}[f(Y_0)] + \int_0^{t+\Delta t} \mathbb{E} [\mathcal{L}f(Y_s)] ds - \mathbb{E}[f(X_0)] - \int_0^{t} \mathbb{E}  [\mathcal{L}f(X_s)] ds - \int_t^{t+\Delta t} \mathbb{E}[\mathcal{L}^\theta f(X_s)]ds \\
+							 &= \int_t^{t+\Delta t} \mathbb{E}[\mathcal{L} f(X_s) - \mathcal{L}^\theta f(X_s)]ds \\
+							 &\approx \Delta t \mathbb{E}[\mathcal{L} f(X_t) - \mathcal{L}^\theta f(X_t)]
 	\end{align*}
-	
-	but the mixed term vanishes, so we end up with
-
-	\begin{gather*}
-		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\ 
-		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t\mathcal{L}_s^ f(X_s)ds)^2] + \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
-	\end{gather*}
-
-	where the first summand does not depend on $\theta$. Hence, minimizing $\mathbb{E}[(f(X_t) - f(X_0) - \mathcal{L}_s^\theta f(X_s)ds)^2]$, minimizes the error between the generators as well.
+	Here we use Fubini's theorem, since the generator is integrable, and we use that $X_s$ and $Y_s$ follow the same distribution to get cancellations.
 \end{proof}
 
-With our loss constructed and proven to work, we can now create our martingale matching algorithm, which is similar in vein to other algorithms for generative modelling, such as flow and score matching. The algorithm is given in Alg. \ref{alg:mm}.
+If we now write $\epsilon = \mathbb{E}[\mathcal{L}f(X_t) - \mathcal{L}^\theta f(X_t)]$ as our error, then 
+
+\begin{equation}
+	\min_\theta \left( \frac{1}{N} \sum_{i=1}^n R_\theta^{f, i}\right)^2 \sim {\Delta t}^2 \epsilon^2
+	\label{eq:order}
+\end{equation}
+
+
+The loss $L_3$ is directly justified by the weak martingale
+condition. In practice, we use the stronger surrogate $L_{ME}$, obtained by
+moving the square inside the empirical average. Since
+\[
+    \mathbb{E}\bigl[(R_\theta^f)^2\bigr]
+    =
+    \bigl(\mathbb{E}[R_\theta^f]\bigr)^2
+    +
+    \operatorname{Var}(R_\theta^f),
+\]
+this surrogate can be interpreted as augmenting the moment-matching objective
+with a variance penalty on the residuals. Although this modification is not
+implied by the martingale identity alone, and may in principle change the
+population minimizer, we find empirically that it gives more stable and faster
+training.
+
+\begin{equation}
+	\label{best_loss}
+	L_{ME} = \frac{1}{|\mathcal{F}|N} \sum_{f \in \mathcal{F}} \sum_{i=1}^{N} (R^{f, i})^2.
+\end{equation}
+
+
+% This proof does not work because we do not have the desired independence and because the loss is not the actual loss which we are learning.
+% \begin{proof}
+% 	Let $\mathcal{L}_s$ be the desired generator of our process, and $\mathcal{L}_s^\theta$ be the parametrized version based on our parametrized drift, $b^\theta$. Then we know that
+%
+% 	\begin{equation}
+% 		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] = 0
+% 	\end{equation}
+% 	
+% 	while we are trying to minimize
+%
+% 	\begin{equation}
+% 		\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]
+% 	\end{equation}
+%
+% 	so the error is given by
+%
+% 	\begin{equation}
+% 		\mathbb{E}[\int_0^t (\mathcal{L}_s^\theta f(X_s) - \mathcal{L}_sf(X_s)ds)].
+% 	\end{equation}
+%
+% 	Then 
+% 	\begin{align*}
+% 		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\
+% 		&\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^ f(X_s)ds)^2] \\
+% 		&+ \mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s f(X_s)ds]\mathbb{E}[f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds] \\
+% 		&+ \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+% 	\end{align*}
+% 	
+% 	but the mixed term vanishes, so we end up with
+%
+% 	\begin{gather*}
+% 		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t \mathcal{L}_s^\theta f(X_s)ds)^2] = \\ 
+% 		\mathbb{E}[(f(X_t) - f(X_0) - \int_0^t\mathcal{L}_s^ f(X_s)ds)^2] + \mathbb{E}[(\int_0^t \mathcal{L}_s f(X_s) - \mathcal{L}_s^\theta f(X_s) ds)^2]
+% 	\end{gather*}
+%
+% 	where the first summand does not depend on $\theta$. Hence, minimizing $\mathbb{E}[(f(X_t) - f(X_0) - \mathcal{L}_s^\theta f(X_s)ds)^2]$, minimizes the error between the generators as well.
+% \end{proof}
+
+With our loss constructed, we can now create our martingale matching algorithm, which is similar in vein to other algorithms for generative modelling, such as flow and score matching. The algorithm is given in Alg. \ref{alg:mm}.
 
 \begin{algorithm}
 	\caption{Martingale Matching}\label{alg:mm}
 	\begin{algorithmic}
-		\Require Neural net $b_t^{\theta}$, diffusion coefficient $\sigma$, time-step $\Delta t$, dataset of samples $z \sim p_{data}$
+		\Require Neural net $b_t^{\theta}$, diffusion coefficient $\sigma$, time-step $\Delta t$, dataset of samples $z \sim p_{data}$, conditional probability path $p_t(\cdot|z)$
 		\For{each mini-batch of data}
 		\State Sample datum z from dataset.
 		\State Sample $t \sim U[0,1-\Delta t]$.
 		\State Set $x_t \sim p_t(.|z)$, $x_{t+\Delta t} \sim p_{t + \Delta t}(.|z)$
-		\State Compute loss $\mathcal{L}_{ME}^\theta$
-		\State Update the model parameter $\theta$ via gradient descent on $\mathcal{L}_{ME}^{\theta}$
+		\State Compute loss $L_{ME}$
+		\State Update the model parameter $\theta$ via gradient descent on $L_{ME}$
 		\EndFor	
 	\end{algorithmic}
 \end{algorithm}
