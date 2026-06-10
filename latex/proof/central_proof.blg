@@ -1,9 +1,0 @@
-[0] Config.pm:307> INFO - This is Biber 2.19
-[0] Config.pm:310> INFO - Logfile is 'central_proof.blg'
-[26] biber-darwin:340> INFO - === Wed May 27, 2026, 14:48:45
-[32] Biber.pm:419> INFO - Reading 'central_proof.bcf'
-[58] Biber.pm:979> INFO - Found 0 citekeys in bib section 0
-[64] bbl.pm:660> INFO - Writing 'central_proof.bbl' with encoding 'UTF-8'
-[64] bbl.pm:763> INFO - Output to central_proof.bbl
-[64] Biber.pm:131> WARN - The file 'central_proof.bcf' does not contain any citations!
-[64] Biber.pm:133> INFO - WARNINGS: 1
